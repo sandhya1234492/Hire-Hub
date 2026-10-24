@@ -4,6 +4,7 @@ from flask import Flask, jsonify, render_template, request
 from pymongo import MongoClient
 
 from app.config import Config
+from app.cli import register_commands
 from app.extensions import close_mongo, get_database
 from app.routes.api import api
 from app.routes.web import web
@@ -25,6 +26,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.teardown_appcontext(close_mongo)
     app.register_blueprint(web)
     app.register_blueprint(api, url_prefix="/api")
+    register_commands(app)
 
     @app.context_processor
     def inject_current_user():

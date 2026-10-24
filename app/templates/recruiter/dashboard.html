@@ -1,17 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Recruiter dashboard | HireHub{% endblock %}
 {% block content %}
-<section class="page-heading"><div class="container"><p class="eyebrow">Recruiter workspace</p><h1 class="h2">Welcome, {{ user.name.split()[0] }}.</h1><p class="text-secondary mb-0">Keep your hiring moving forward.</p></div></section>
+<section class="page-heading"><div class="container d-flex flex-wrap justify-content-between align-items-center gap-3"><div><p class="eyebrow">Recruiter workspace</p><h1 class="h2 mb-1">Welcome, {{ user.name.split()[0] }}.</h1><p class="text-secondary mb-0">Your hiring activity and next steps.</p></div><a class="btn btn-primary" href="{{ url_for('web.create_job') }}">Post a Job</a></div></section>
 <section class="container py-4">
-  <div class="row g-3 mb-4">{% for label, value in [('Total jobs',stats.jobs),('Active jobs',stats.active_jobs),('Applications',stats.applications)] %}<div class="col-6 col-lg-4"><div class="metric-card"><span>{{ label }}</span><strong>{{ value }}</strong></div></div>{% endfor %}
-    <div class="col-6 col-lg-4 d-flex"><a class="btn btn-primary w-100 d-flex align-items-center justify-content-center" href="{{ url_for('web.create_job') }}">+ Post a job</a></div></div>
-  <div class="row g-4">
-    <div class="col-lg-5"><div class="section-card"><div class="d-flex justify-content-between mb-3"><h2 class="h5">Your jobs</h2><a href="{{ url_for('web.recruiter_jobs') }}">Manage all</a></div>
-      {% for job in jobs %}<div class="list-row"><div><a class="fw-semibold text-decoration-none" href="{{ url_for('web.applicants', job_id=job._id) }}">{{ job.title }}</a><div class="small text-secondary">{{ job.location }} · {{ job.status|title }}</div></div><a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.applicants', job_id=job._id) }}">Applicants</a></div>{% else %}<p class="text-secondary">Post your first job to get started.</p>{% endfor %}
-    </div></div>
-    <div class="col-lg-7"><div class="section-card"><div class="d-flex justify-content-between mb-3"><h2 class="h5">Recent applicants</h2><a href="{{ url_for('web.schedule_interview') }}">Schedule interview</a></div>
-      {% for item in applications %}<div class="list-row"><div><strong>{{ item.candidate.name if item.candidate else 'Candidate' }}</strong><div class="small text-secondary">{{ item.job.title if item.job else '' }} · {{ item.status|replace('_',' ')|title }}</div></div><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('web.applicants', job_id=item.job_id) }}">Review</a></div>{% else %}<p class="text-secondary">No applications yet.</p>{% endfor %}
-    </div></div>
-  </div>
+  <div class="row g-3 mb-4">{% for label, value in [('Active Jobs',stats.active_jobs),('Applications',stats.applications),('Shortlisted',stats.shortlisted),('Upcoming Interviews',stats.interviews)] %}<div class="col-6 col-lg-3"><div class="metric-card"><span>{{ label }}</span><strong>{{ value }}</strong></div></div>{% endfor %}</div>
+  <section class="section-card">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><div><h2 class="h5 mb-1">Recent applications</h2><p class="small text-secondary mb-0">Latest activity across your jobs</p></div><a href="{{ url_for('web.recruiter_applications') }}">View all applicants</a></div>
+    {% for item in applications %}<div class="application-row"><div class="applicant-main"><strong>{{ item.candidate.name if item.candidate else 'Candidate' }}</strong><div class="small text-secondary">{{ item.job.title if item.job else 'Job unavailable' }} · {{ item.applied_at.strftime('%b %d, %Y') if item.applied_at else '' }}</div></div><span class="status-label status-{{ item.status|lower|replace('_','-') }}">{{ item.status|replace('_',' ')|title }}</span><a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.applicants', job_id=item.job_id) }}">Review</a></div>{% else %}<p class="empty-hint mb-0">No applications yet. <a href="{{ url_for('web.create_job') }}">Post your first job</a> to start meeting candidates.</p>{% endfor %}
+  </section>
+  <details class="advanced-options mt-4"><summary>More hiring totals</summary><div class="d-flex flex-wrap gap-4 pt-3 small text-secondary"><span>Total jobs: <strong class="text-dark">{{ total_jobs }}</strong></span><span>Selections: <strong class="text-dark">{{ stats.selections }}</strong></span></div></details>
+  <div class="d-flex gap-3 mt-3 small"><a href="{{ url_for('web.recruiter_jobs') }}">Manage {{ total_jobs }} job{{ '' if total_jobs == 1 else 's' }}</a><a href="{{ url_for('web.interviews') }}">View interviews</a><a href="{{ url_for('web.recruiter_company') }}">Company profile</a></div>
 </section>
 {% endblock %}

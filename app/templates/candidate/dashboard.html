@@ -3,25 +3,28 @@
 {% block content %}
 <section class="page-heading"><div class="container"><p class="eyebrow">Candidate workspace</p><h1 class="h2">Good to see you, {{ user.name.split()[0] }}.</h1><p class="text-secondary mb-0">Your search and applications, all in one place.</p></div></section>
 <section class="container py-4">
+  <div class="dashboard-intro mb-4"><div><h2 class="h5 mb-1">Ready for your next opportunity?</h2><p class="text-secondary mb-1">Browse open roles picked for your skills.</p><a class="small" href="{{ url_for('web.profile') }}">Profile completion: {{ stats.profile_completion }}%</a></div><a class="btn btn-primary" href="{{ url_for('web.jobs') }}">Find Jobs</a></div>
   <div class="row g-3 mb-4">
-    {% for label, value in [('Applications', stats.applications), ('Shortlisted', stats.shortlisted), ('Interviews', stats.interviews), ('Saved jobs', stats.saved_jobs)] %}
+    {% for label, value in [('Applications', stats.applications), ('Shortlisted', stats.shortlisted), ('Interviews', stats.interviews), ('Selections', stats.selections)] %}
     <div class="col-6 col-lg-3"><div class="metric-card"><span>{{ label }}</span><strong>{{ value }}</strong></div></div>{% endfor %}
   </div>
   <div class="row g-4">
-    <div class="col-lg-8"><div class="section-card">
+    <div class="col-lg-7"><section class="section-card mb-4">
+      <div class="d-flex justify-content-between align-items-center mb-2"><div><h2 class="h5 mb-1">Recommended for you</h2><p class="small text-secondary mb-0">Jobs matched to your profile</p></div><a href="{{ url_for('web.jobs') }}">View all</a></div>
+      {% for item in recommendations %}<div class="list-row"><div><a href="{{ url_for('web.job_detail', job_id=item.job._id) }}" class="fw-semibold text-decoration-none">{{ item.job.title }}</a><div class="small text-secondary">{{ item.job.company.name if item.job.company else '' }}{% if item.job.location %} · {{ item.job.location }}{% endif %}</div></div><span class="match-pill">{{ item.score }}% match</span></div>{% else %}<p class="empty-hint mb-0">Add skills to your <a href="{{ url_for('web.profile') }}">profile</a> to get better matches, or browse all open roles.</p>{% endfor %}
+    </section>
+    <section class="section-card">
       <div class="d-flex justify-content-between align-items-center mb-3"><h2 class="h5 mb-0">Recent applications</h2><a href="{{ url_for('web.applications') }}">View all</a></div>
       {% for application in applications %}<div class="list-row">
         <div><a href="{{ url_for('web.job_detail', job_id=application.job._id) if application.job else '#' }}" class="fw-semibold text-decoration-none">{{ application.job.title if application.job else 'Job unavailable' }}</a><div class="small text-secondary">{{ application.status|replace('_',' ')|title }}</div></div>
         <span class="small text-secondary">{{ application.applied_at.strftime('%b %d, %Y') if application.applied_at else '' }}</span>
-      </div>{% else %}<p class="text-secondary mb-0">You have not applied to any roles yet.</p>{% endfor %}
+      </div>{% else %}<p class="empty-hint mb-0">No applications yet. Find a job that fits and apply to get started.</p>{% endfor %}
+    </section></div>
+    <div class="col-lg-5">
+      {% if stats.profile_completion < 100 %}<section class="section-card mb-4"><h2 class="h6">Improve your matches</h2><p class="small text-secondary">Your profile is {{ stats.profile_completion }}% complete. Add your experience, education, and resume to help recruiters understand your strengths.</p><a href="{{ url_for('web.profile') }}" class="btn btn-outline-primary btn-sm">Complete profile</a></section>{% endif %}
+      {% if upcoming_interviews %}<section class="section-card"><div class="d-flex justify-content-between align-items-center mb-2"><h2 class="h5 mb-0">Upcoming interviews</h2><a href="{{ url_for('web.interviews') }}">View all</a></div>{% for interview in upcoming_interviews %}<div class="list-row"><div><strong>{{ interview.job.title if interview.job else 'Interview' }}</strong><div class="small text-secondary">{{ interview.date }} at {{ interview.time }}</div></div><span class="status-label status-scheduled">Scheduled</span></div>{% endfor %}</section>{% endif %}
+      <div class="d-flex flex-wrap gap-3 mt-3 small"><a href="{{ url_for('web.saved_jobs') }}">Saved jobs ({{ stats.saved_jobs }})</a><a href="{{ url_for('web.notifications') }}">Notifications{% if stats.unread_notifications %} ({{ stats.unread_notifications }} new){% endif %}</a></div>
     </div>
-    <div class="section-card mt-4"><div class="d-flex justify-content-between align-items-center mb-3"><h2 class="h5 mb-0">Recommended for you</h2><a href="{{ url_for('web.jobs') }}">Explore jobs</a></div>
-      {% for item in recommendations %}<div class="list-row"><div><a href="{{ url_for('web.job_detail', job_id=item.job._id) }}" class="fw-semibold text-decoration-none">{{ item.job.title }}</a><div class="small text-secondary">{{ item.job.location }} · {{ item.matched_skills|join(', ') }}</div></div><span class="match-pill">{{ item.score }}%</span></div>{% else %}<p class="text-secondary mb-0">Add skills to your profile for recommendations.</p>{% endfor %}
-    </div></div>
-    <div class="col-lg-4"><div class="section-card"><div class="d-flex justify-content-between mb-3"><h2 class="h5 mb-0">Notifications</h2><a href="{{ url_for('web.notifications') }}">See all</a></div>
-      {% for note in notifications %}<div class="notification-row {% if not note.read %}unread{% endif %}"><div class="small">{{ note.message }}</div><div class="small text-secondary mt-1">{{ note.created_at.strftime('%b %d') if note.created_at else '' }}</div></div>{% else %}<p class="text-secondary mb-0">You're all caught up.</p>{% endfor %}
-      <a href="{{ url_for('web.profile') }}" class="btn btn-outline-primary w-100 mt-4">Complete your profile</a>
-    </div></div>
   </div>
 </section>
 {% endblock %}

@@ -7,12 +7,16 @@ from werkzeug.utils import secure_filename
 from app.exceptions import HireHubError, UnauthorizedError, ValidationError
 from app.extensions import get_database
 from app.repositories.base_repository import BaseRepository
+from app.repositories.admin_repository import AdminRepository
 from app.repositories.user_repository import UserRepository
 from app.services.application_service import ApplicationService
+from app.services.admin_service import AdminService
 from app.services.auth_service import AuthService
+from app.services.company_service import CompanyService
+from app.services.interview_service import InterviewService
 from app.services.job_service import JobService
 from app.services.matching_service import MatchingService
-from app.services.notification_service import NotificationService
+from app.services.report_service import ReportService
 from app.services.resume_service import ResumeService
 from app.utils.auth import current_user_document, login_required, role_required
 
@@ -32,7 +36,8 @@ def json_value(value):
 
 
 def success(data=None, message="OK", status=200):
-    return jsonify(success=True, message=message, data=json_value(data or {})), status
+    payload = {} if data is None else data
+    return jsonify(success=True, message=message, data=json_value(payload)), status
 
 
 @api.errorhandler(HireHubError)
@@ -122,6 +127,21 @@ def close_job(job_id):
     return success(job, "Job closed successfully")
 
 
+@api.get("/recruiter/company")
+@role_required("RECRUITER")
+def get_recruiter_company():
+    return success(CompanyService(get_database()).get_for_recruiter(current_user_document()))
+
+
+@api.put("/recruiter/company")
+@role_required("RECRUITER")
+def update_recruiter_company():
+    company = CompanyService(get_database()).update_for_recruiter(
+        request.get_json(silent=True) or {}, current_user_document()
+    )
+    return success(company, "Company profile updated")
+
+
 @api.get("/candidates/<candidate_id>")
 @login_required
 def get_candidate(candidate_id):
@@ -146,6 +166,8 @@ def update_candidate(candidate_id):
     for field in ("name", "phone", "location", "notice_period"):
         if field in data:
             changes[field] = str(data[field]).strip()
+    if "name" in changes and (not changes["name"] or len(changes["name"]) > 120):
+        raise ValidationError("Enter a name no longer than 120 characters.")
     if "skills" in data:
         changes["skills"] = AuthService._skills(data["skills"])
     for field in ("experience_years", "expected_salary"):
@@ -157,6 +179,32 @@ def update_candidate(candidate_id):
             if value is not None and value < 0:
                 raise ValidationError(f"{field} cannot be negative.")
             changes[field] = value
+    for field, required_fields, numeric_field in (
+        ("education", {"degree", "institution", "year"}, "year"),
+        ("experience", {"title", "company", "years"}, "years"),
+    ):
+        if field in data:
+            values = data[field]
+            if not isinstance(values, list) or any(
+                not isinstance(item, dict) or not required_fields.issubset(item)
+                or any(not str(item.get(name, "")).strip() for name in required_fields)
+                for item in values
+            ):
+                raise ValidationError(f"{field} must be a list of complete profile entries.")
+            normalized = []
+            for item in values:
+                try:
+                    amount = float(item[numeric_field])
+                except (TypeError, ValueError) as error:
+                    raise ValidationError(
+                        f"{field} {numeric_field} must be a number."
+                    ) from error
+                if amount < 0 or (
+                    numeric_field == "year" and not amount.is_integer()
+                ):
+                    raise ValidationError(f"{field} {numeric_field} is invalid.")
+                normalized.append({**item, numeric_field: int(amount) if numeric_field == "year" else amount})
+            changes[field] = normalized
     changes["updated_at"] = datetime.now(timezone.utc)
     UserRepository(get_database()).update(user["_id"], changes)
     return success(UserRepository(get_database()).get_by_id(user["_id"]), "Profile updated")
@@ -249,76 +297,19 @@ def unsave_job(job_id):
 @api.post("/interviews")
 @role_required("RECRUITER")
 def create_interview():
-    user = current_user_document()
-    data = request.get_json(silent=True) or {}
-    application = BaseRepository(get_database(), "applications").get_by_id(
-        data.get("application_id")
+    interview = InterviewService(get_database()).create(
+        request.get_json(silent=True) or {}, current_user_document()
     )
-    if not application:
-        from app.exceptions import ApplicationNotFoundError
-        raise ApplicationNotFoundError("Application not found.")
-    job = BaseRepository(get_database(), "jobs").get_by_id(application["job_id"])
-    if not job or job["recruiter_id"] != user["_id"]:
-        raise UnauthorizedError("You can only schedule interviews for your jobs.")
-    interview_type = str(data.get("type", "ONLINE")).upper()
-    if interview_type not in {"ONLINE", "PHONE", "IN_PERSON"}:
-        raise ValidationError("Select a valid interview type.")
-    date_value = str(data.get("date", ""))
-    time_value = str(data.get("time", ""))
-    if not date_value or not time_value:
-        raise ValidationError("Interview date and time are required.")
-    if application["status"] not in {"SHORTLISTED", "INTERVIEW_SCHEDULED"}:
-        from app.exceptions import InvalidApplicationStatusError
-        raise InvalidApplicationStatusError("Only shortlisted candidates can be scheduled.")
-    interview = {
-        "application_id": application["_id"], "candidate_id": application["candidate_id"],
-        "recruiter_id": user["_id"], "date": date_value, "time": time_value,
-        "type": interview_type, "meeting_link": str(data.get("meeting_link", "")).strip(),
-        "status": "SCHEDULED", "feedback": "",
-        "created_at": datetime.now(timezone.utc),
-    }
-    interview_id = get_database()["interviews"].insert_one(interview).inserted_id
-    get_database()["applications"].update_one(
-        {"_id": application["_id"]},
-        {"$set": {"status": "INTERVIEW_SCHEDULED", "interview_id": interview_id,
-                  "updated_at": datetime.now(timezone.utc)}},
-    )
-    NotificationService(get_database()).create(
-        application["candidate_id"], f"An interview is scheduled for {date_value} at {time_value}.",
-        "INTERVIEW",
-    )
-    return success({"_id": interview_id, **interview}, "Interview scheduled", 201)
+    return success(interview, "Interview scheduled", 201)
 
 
 @api.put("/interviews/<interview_id>")
 @role_required("RECRUITER")
 def update_interview(interview_id):
-    user = current_user_document()
-    repo = BaseRepository(get_database(), "interviews")
-    interview = repo.get_by_id(interview_id)
-    if not interview:
-        from app.exceptions import UserNotFoundError
-        raise UserNotFoundError("Interview not found.")
-    if interview["recruiter_id"] != user["_id"]:
-        raise UnauthorizedError("You can only manage your own interviews.")
-    data = request.get_json(silent=True) or {}
-    changes = {}
-    if "status" in data:
-        status = str(data["status"]).upper()
-        if status not in {"SCHEDULED", "COMPLETED", "CANCELLED"}:
-            raise ValidationError("Select a valid interview status.")
-        changes["status"] = status
-    for field in ("date", "time", "meeting_link", "feedback"):
-        if field in data:
-            changes[field] = str(data[field]).strip()
-    if not changes:
-        raise ValidationError("Provide at least one interview field to update.")
-    repo.update(interview["_id"], changes)
-    if changes.get("status") == "CANCELLED":
-        NotificationService(get_database()).create(
-            interview["candidate_id"], "Your interview was cancelled.", "INTERVIEW"
-        )
-    return success(repo.get_by_id(interview["_id"]), "Interview updated")
+    interview = InterviewService(get_database()).update(
+        interview_id, request.get_json(silent=True) or {}, current_user_document()
+    )
+    return success(interview, "Interview updated")
 
 
 @api.get("/interviews")
@@ -380,21 +371,9 @@ def download_resume(resume_id):
 @api.delete("/resumes/<resume_id>")
 @role_required("CANDIDATE")
 def delete_resume(resume_id):
-    from bson import ObjectId
-    from bson.errors import InvalidId
-    from pathlib import Path
-    try:
-        object_id = ObjectId(resume_id)
-    except (InvalidId, TypeError):
-        object_id = None
-    resume = get_database()["resumes"].find_one({"_id": object_id}) if object_id else None
-    user = current_user_document()
-    if not resume or resume["candidate_id"] != user["_id"]:
-        raise UnauthorizedError("Resume not found or access denied.")
-    path = Path(current_app.config["UPLOAD_FOLDER"]) / resume["stored_name"]
-    if path.is_file():
-        path.unlink()
-    get_database()["resumes"].delete_one({"_id": resume["_id"]})
+    ResumeService(
+        get_database(), current_app.config["UPLOAD_FOLDER"]
+    ).delete(resume_id, current_user_document())
     return success(message="Resume deleted")
 
 
@@ -410,20 +389,45 @@ def analytics(role):
     database = get_database()
     if role == "candidate":
         applications = database["applications"]
-        base = {"candidate_id": user["_id"]}
+        candidate_ids = (
+            [item["_id"] for item in database["users"].find(
+                {"role": "CANDIDATE"}, {"_id": 1}
+            )]
+            if user["role"] == "ADMIN" else [user["_id"]]
+        )
+        base = {"candidate_id": {"$in": candidate_ids}}
         data = {
             "total_applications": applications.count_documents(base),
             "shortlisted": applications.count_documents({**base, "status": "SHORTLISTED"}),
-            "interviews": applications.count_documents({**base, "status": "INTERVIEW_SCHEDULED"}),
+            "interviews": database["interviews"].count_documents({
+                "candidate_id": {"$in": candidate_ids},
+            }),
             "selections": applications.count_documents({**base, "status": "SELECTED"}),
         }
     elif role == "recruiter":
-        jobs = list(database["jobs"].find({"recruiter_id": user["_id"]}, {"_id": 1, "status": 1}))
+        recruiter_ids = (
+            [item["_id"] for item in database["users"].find(
+                {"role": "RECRUITER"}, {"_id": 1}
+            )]
+            if user["role"] == "ADMIN" else [user["_id"]]
+        )
+        jobs = list(database["jobs"].find(
+            {"recruiter_id": {"$in": recruiter_ids}}, {"_id": 1, "status": 1}
+        ))
         job_ids = [item["_id"] for item in jobs]
         data = {
             "total_jobs": len(jobs),
             "active_jobs": sum(item["status"] == "OPEN" for item in jobs),
             "applications": database["applications"].count_documents({"job_id": {"$in": job_ids}}),
+            "shortlisted": database["applications"].count_documents({
+                "job_id": {"$in": job_ids}, "status": "SHORTLISTED",
+            }),
+            "interviews": database["interviews"].count_documents({
+                "recruiter_id": {"$in": recruiter_ids},
+            }),
+            "selections": database["applications"].count_documents({
+                "job_id": {"$in": job_ids}, "status": "SELECTED",
+            }),
         }
     else:
         data = {
@@ -434,6 +438,7 @@ def analytics(role):
             "jobs": database["jobs"].count_documents({}),
             "applications": database["applications"].count_documents({}),
             "interviews": database["interviews"].count_documents({}),
+            "selections": database["applications"].count_documents({"status": "SELECTED"}),
         }
     return success(data)
 
@@ -448,6 +453,24 @@ def list_notifications():
     return success(result)
 
 
+@api.get("/recommendations")
+@role_required("CANDIDATE")
+def recommendations():
+    user = current_user_document()
+    jobs = JobService(get_database()).search({"page": 1, "per_page": 100})["items"]
+    applied_ids = {
+        str(item["job_id"]) for item in get_database()["applications"].find(
+            {"candidate_id": user["_id"]}, {"job_id": 1}
+        )
+    }
+    recommendations = [
+        {"job": job, **MatchingService().calculate(user, job)}
+        for job in jobs if str(job["_id"]) not in applied_ids
+    ]
+    recommendations.sort(key=lambda item: item["score"], reverse=True)
+    return success(recommendations[:20])
+
+
 @api.post("/notifications/<notification_id>/read")
 @login_required
 def mark_notification_read(notification_id):
@@ -458,3 +481,102 @@ def mark_notification_read(notification_id):
         raise UnauthorizedError("Notification not found or access denied.")
     repo.update(notification["_id"], {"read": True})
     return success(message="Notification marked as read")
+
+
+@api.get("/admin/dashboard")
+@role_required("ADMIN")
+def admin_dashboard():
+    return success(AdminService(get_database()).analytics())
+
+
+@api.get("/admin/users")
+@role_required("ADMIN")
+def admin_users():
+    role = str(request.args.get("role", "")).upper() or None
+    if role and role not in {"CANDIDATE", "RECRUITER", "ADMIN"}:
+        raise ValidationError("Select a valid user role.")
+    result = AdminRepository(get_database()).list_users(
+        role, page=request.args.get("page", 1)
+    )
+    return success(result)
+
+
+@api.patch("/admin/users/<user_id>/active")
+@role_required("ADMIN")
+def admin_set_user_active(user_id):
+    data = request.get_json(silent=True) or {}
+    active = data.get("active")
+    if not isinstance(active, bool):
+        raise ValidationError("active must be a boolean.")
+    user = AdminService(get_database()).set_user_active(
+        user_id, active, current_user_document()
+    )
+    return success(user, "User status updated")
+
+
+@api.get("/admin/companies")
+@role_required("ADMIN")
+def admin_company_list():
+    return success(AdminRepository(get_database()).list_companies(
+        page=request.args.get("page", 1)
+    ))
+
+
+@api.patch("/admin/companies/<company_id>/verification")
+@role_required("ADMIN")
+def admin_company_verification(company_id):
+    data = request.get_json(silent=True) or {}
+    verified = data.get("verified")
+    if not isinstance(verified, bool):
+        raise ValidationError("verified must be a boolean.")
+    company = AdminService(get_database()).verify_company(
+        company_id, verified, current_user_document()
+    )
+    return success(company, "Company verification updated")
+
+
+@api.get("/admin/jobs")
+@role_required("ADMIN")
+def admin_job_list():
+    return success(AdminRepository(get_database()).list_jobs(
+        page=request.args.get("page", 1)
+    ))
+
+
+@api.patch("/admin/jobs/<job_id>/moderation")
+@role_required("ADMIN")
+def admin_moderate_job(job_id):
+    data = request.get_json(silent=True) or {}
+    job = AdminService(get_database()).moderate_job(
+        job_id, data.get("status"), current_user_document()
+    )
+    return success(job, "Job moderation updated")
+
+
+@api.get("/admin/applications")
+@role_required("ADMIN")
+def admin_application_list():
+    query = {}
+    status = str(request.args.get("status", "")).upper()
+    if status:
+        if status not in ApplicationService.TRANSITIONS:
+            raise ValidationError("Select a valid application status.")
+        query["status"] = status
+    return success(AdminRepository(get_database()).list_applications(
+        query, page=request.args.get("page", 1)
+    ))
+
+
+@api.get("/admin/audit-logs")
+@role_required("ADMIN")
+def admin_audit_logs():
+    return success(AdminRepository(get_database()).list_audit_logs(
+        page=request.args.get("page", 1)
+    ))
+
+
+@api.get("/admin/reports/<report_type>")
+@role_required("ADMIN")
+def admin_report(report_type):
+    headers, rows = ReportService(get_database()).build(report_type, request.args)
+    return success({"headers": headers, "rows": rows})

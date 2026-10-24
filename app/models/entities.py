@@ -36,6 +36,21 @@ class User:
             id=document.get("_id"),
             is_active=document.get("is_active", True),
             created_at=document.get("created_at", utcnow()),
+            **(
+                {
+                    "location": document.get("location", ""),
+                    "skills": document.get("skills", []),
+                    "experience_years": document.get("experience_years", 0),
+                    "expected_salary": document.get("expected_salary"),
+                    "notice_period": document.get("notice_period", ""),
+                    "saved_jobs": document.get("saved_jobs", []),
+                    "education": document.get("education", []),
+                    "experience": document.get("experience", []),
+                }
+                if role_class is Candidate else
+                {"company_id": document.get("company_id")}
+                if role_class is Recruiter else {}
+            ),
         )
 
 
@@ -47,6 +62,8 @@ class Candidate(User):
     expected_salary: float | None = None
     notice_period: str = ""
     saved_jobs: list[str] = field(default_factory=list)
+    education: list[dict] = field(default_factory=list)
+    experience: list[dict] = field(default_factory=list)
 
 
 @dataclass

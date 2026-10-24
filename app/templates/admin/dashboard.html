@@ -1,9 +1,29 @@
 {% extends "base.html" %}
 {% block title %}Admin dashboard | HireHub{% endblock %}
 {% block content %}
-<section class="page-heading"><div class="container"><p class="eyebrow">Administration</p><h1 class="h2">HireHub overview</h1></div></section>
-<section class="container py-4"><div class="row g-3">
-{% for label, value in [('Users',stats.users),('Candidates',stats.candidates),('Recruiters',stats.recruiters),('Companies',stats.companies),('Jobs',stats.jobs),('Applications',stats.applications)] %}
-<div class="col-6 col-lg-4"><div class="metric-card"><span>{{ label }}</span><strong>{{ value }}</strong></div></div>{% endfor %}
-</div><div class="d-flex flex-wrap gap-2 mt-4"><a class="btn btn-outline-primary" href="{{ url_for('web.admin_users') }}">Manage users</a><a class="btn btn-outline-primary" href="{{ url_for('web.applications_csv') }}">Download application report</a></div></section>
+<section class="page-heading"><div class="container"><p class="eyebrow">Administration</p><h1 class="h2 mb-1">Platform overview</h1><p class="text-secondary mb-0">Review outstanding work and recent activity.</p></div></section>
+<section class="container py-4">
+  <div class="row g-3 mb-4">
+    {% for label, value in [('Users',stats.users),('Company verification',stats.unverified_companies),('Open jobs',stats.open_jobs),('Applications',stats.applications)] %}
+    <div class="col-6 col-lg-3"><div class="metric-card"><span>{{ label }}</span><strong>{{ value }}</strong></div></div>{% endfor %}
+  </div>
+  <div class="row g-4">
+    <div class="col-lg-5">
+      <section class="section-card h-100">
+        <h2 class="h5">Needs attention</h2>
+        <p class="text-secondary small">Start with items that need a decision.</p>
+        {% if stats.unverified_companies %}<div class="list-row"><div><strong>{{ stats.unverified_companies }} compan{{ 'y' if stats.unverified_companies == 1 else 'ies' }}</strong><div class="small text-secondary">Waiting for verification</div></div><a class="btn btn-sm btn-primary" href="{{ url_for('web.admin_companies') }}">Review</a></div>{% endif %}
+        <div class="list-row"><div><strong>Job moderation</strong><div class="small text-secondary">Review published job listings</div></div><a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.admin_jobs') }}">Open</a></div>
+        {% if not stats.unverified_companies %}<p class="small text-secondary mb-0 mt-3">No company verifications are waiting.</p>{% endif %}
+      </section>
+    </div>
+    <div class="col-lg-7">
+      <section class="section-card h-100">
+        <div class="d-flex justify-content-between align-items-center mb-2"><h2 class="h5 mb-0">Recent activity</h2><a href="{{ url_for('web.admin_audit_logs') }}">View all</a></div>
+        {% for item in recent_audit_logs %}<div class="list-row"><div><strong>{{ item.action|replace('_',' ')|title }}</strong><div class="small text-secondary">{{ item.actor.name if item.actor else 'System' }} · {{ item.resource|title if item.resource else 'Platform' }}</div></div><span class="small text-secondary">{{ item.timestamp.strftime('%b %d') if item.timestamp else '' }}</span></div>{% else %}<p class="empty-hint mb-0">No audit activity has been recorded yet.</p>{% endfor %}
+      </section>
+    </div>
+  </div>
+  <details class="advanced-options mt-4"><summary>Platform totals</summary><div class="row g-3 pt-3">{% for label, value in [('Candidates',stats.candidates),('Recruiters',stats.recruiters),('Companies',stats.companies),('Jobs',stats.jobs),('Interviews',stats.interviews),('Selections',stats.selections)] %}<div class="col-6 col-md-4 col-lg-2"><div class="compact-metric"><span>{{ label }}</span><strong>{{ value }}</strong></div></div>{% endfor %}</div></details>
+</section>
 {% endblock %}

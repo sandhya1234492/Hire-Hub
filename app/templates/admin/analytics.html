@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Platform analytics | HireHub{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="container"><p class="eyebrow">Administration</p><h1 class="h2">Platform analytics</h1></div></section>
+<section class="container py-4">
+<div class="row g-3 mb-4">{% for label,value in [('Users',stats.users),('Jobs',stats.jobs),('Applications',stats.applications),('Interviews',stats.interviews)] %}<div class="col-6 col-lg-3"><div class="metric-card"><span>{{ label }}</span><strong>{{ value }}</strong></div></div>{% endfor %}</div>
+<div class="row g-4"><div class="col-lg-6"><div class="section-card"><h2 class="h5">Registrations by month</h2><div class="chart-wrap"><canvas id="registrations-chart" aria-label="Registrations by month" role="img"></canvas></div></div></div><div class="col-lg-6"><div class="section-card"><h2 class="h5">Applications by status</h2><div class="chart-wrap"><canvas id="status-chart" aria-label="Applications by status" role="img"></canvas></div></div></div></div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+  const registrations = {{ stats.monthly_registrations|tojson }};
+  const statuses = {{ stats.application_statuses|tojson }};
+  new Chart(document.getElementById("registrations-chart"), {
+    type: "line",
+    data: { labels: registrations.map(item => item._id),
+      datasets: [{ label: "New accounts", data: registrations.map(item => item.count),
+        borderColor: "#315ce8", backgroundColor: "#315ce822", fill: true, tension: .3 }] },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+  new Chart(document.getElementById("status-chart"), {
+    type: "bar",
+    data: { labels: statuses.map(item => item._id || "Unknown"),
+      datasets: [{ label: "Applications", data: statuses.map(item => item.count),
+        backgroundColor: "#5276f4", borderRadius: 6 }] },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+</script>
+{% endblock %}

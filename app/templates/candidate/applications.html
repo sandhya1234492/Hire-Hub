@@ -8,5 +8,7 @@
   <div class="text-end"><span class="badge text-bg-light">{{ application.status|replace('_',' ')|title }}</span>
   {% if application.status not in ['SELECTED','REJECTED','WITHDRAWN'] %}<form class="mt-2" method="post" action="{{ url_for('web.withdraw_application', application_id=application._id) }}"><button class="btn btn-sm btn-outline-danger">Withdraw</button></form>{% endif %}</div>
 </div>{% else %}<div class="empty-state">No applications yet. <a href="{{ url_for('web.jobs') }}">Browse jobs</a>.</div>{% endfor %}
-</div></section>
+</div>
+{% if result.total > result.per_page %}<nav class="mt-4" aria-label="Application pages"><ul class="pagination justify-content-center">{% for page in range(1, ((result.total - 1) // result.per_page) + 2) %}<li class="page-item {% if page == result.page %}active{% endif %}"><a class="page-link" href="{{ url_for('web.applications', page=page) }}">{{ page }}</a></li>{% endfor %}</ul></nav>{% endif %}
+</section>
 {% endblock %}

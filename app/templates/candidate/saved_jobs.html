@@ -3,12 +3,14 @@
 {% block content %}
 <section class="page-heading"><div class="container"><p class="eyebrow">Candidate workspace</p><h1 class="h2">Saved jobs</h1></div></section>
 <section class="container py-4"><div class="row g-3">
-{% for job in jobs %}<div class="col-md-6 col-xl-4"><article class="card job-card h-100"><div class="card-body p-4">
+{% for job in result["items"] %}<div class="col-md-6"><article class="job-card h-100"><div class="job-card-body">
   <span class="badge text-bg-light">{{ job.work_mode|title }}</span>
   <h2 class="h5 mt-3"><a class="text-decoration-none text-dark" href="{{ url_for('web.job_detail', job_id=job._id) }}">{{ job.title }}</a></h2>
   <p class="mb-1">{{ companies.get(job.company_id|string, {}).get('name', 'Company') }}</p>
   <p class="text-secondary">{{ job.location or 'Location flexible' }}</p>
   <form method="post" action="{{ url_for('web.unsave_job', job_id=job._id) }}"><button class="btn btn-sm btn-outline-secondary">Remove saved job</button></form>
 </div></article></div>{% else %}<div class="col"><div class="empty-state">No saved jobs yet. <a href="{{ url_for('web.jobs') }}">Explore open roles</a>.</div></div>{% endfor %}
-</div></section>
+</div>
+{% from "partials/pagination.html" import render_pagination %}{{ render_pagination('web.saved_jobs', result) }}
+</section>
 {% endblock %}

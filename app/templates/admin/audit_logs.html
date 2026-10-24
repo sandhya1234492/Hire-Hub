@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Audit logs | HireHub{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="container"><p class="eyebrow">Administration</p><h1 class="h2">Audit logs</h1><p class="text-secondary mb-0">Recent account and hiring actions.</p></div></section>
+<section class="container py-4"><div class="section-card table-responsive"><table class="table align-middle mb-0">
+<thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>Resource ID</th></tr></thead><tbody>
+{% for log in result["items"] %}<tr><td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '' }}</td><td>{{ log.actor.name if log.actor else 'System' }}</td><td>{{ log.action }}</td><td>{{ log.resource or '—' }}</td><td class="small text-secondary">{{ log.resource_id or '—' }}</td></tr>
+{% else %}<tr><td colspan="5" class="text-secondary">No audit activity recorded.</td></tr>{% endfor %}
+</tbody></table></div></section>
+{% from "partials/pagination.html" import render_pagination %}<section class="container pb-4">{{ render_pagination('web.admin_audit_logs', result) }}</section>
+{% endblock %}

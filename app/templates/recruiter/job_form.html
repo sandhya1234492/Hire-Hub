@@ -1,21 +1,27 @@
 {% extends "base.html" %}
-{% block title %}Post a job | HireHub{% endblock %}
+{% block title %}{{ 'Edit job' if job else 'Post a job' }} | HireHub{% endblock %}
 {% block content %}
-<section class="page-heading"><div class="container"><p class="eyebrow">Recruiter workspace</p><h1 class="h2">Post a job</h1></div></section>
+<section class="page-heading"><div class="container"><p class="eyebrow">Recruiter workspace</p><h1 class="h2">{{ 'Edit job' if job else 'Post a job' }}</h1></div></section>
 <section class="container py-4"><form method="post" class="section-card form-shell">
-  <div class="mb-3"><label class="form-label">Job title</label><input class="form-control" name="title" required maxlength="160"></div>
-  <div class="mb-3"><label class="form-label">Description</label><textarea class="form-control" name="description" rows="7" required></textarea></div>
+  {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+  <section class="form-section"><h2 class="h5">1. Job information</h2><p class="small text-secondary">Start with the role title and a concise description.</p>
+  <div class="mb-3"><label class="form-label" for="job-title">Job title <span class="required-mark">Required</span></label><input class="form-control" id="job-title" name="title" value="{{ form_data.get('title', job.title if job else '') }}" required maxlength="160" placeholder="e.g. Senior Python Developer"></div>
+  <div class="mb-3"><label class="form-label" for="job-description">Description <span class="required-mark">Required</span></label><textarea class="form-control" id="job-description" name="description" rows="6" required placeholder="Describe the responsibilities and what success looks like.">{{ form_data.get('description', job.description if job else '') }}</textarea></div></section>
+  <section class="form-section"><h2 class="h5">2. Skills and experience</h2><p class="small text-secondary">Help candidates understand the role requirements.</p>
   <div class="row g-3">
-    <div class="col-md-6"><label class="form-label">Skills</label><input class="form-control" name="skills" placeholder="Python, SQL, teamwork"></div>
-    <div class="col-md-6"><label class="form-label">Location</label><input class="form-control" name="location"></div>
-    <div class="col-md-6"><label class="form-label">Work mode</label><select class="form-select" name="work_mode"><option>ONSITE</option><option>HYBRID</option><option>REMOTE</option></select></div>
-    <div class="col-md-6"><label class="form-label">Employment type</label><select class="form-select" name="employment_type"><option>FULL_TIME</option><option>PART_TIME</option><option>INTERNSHIP</option><option>CONTRACT</option></select></div>
-    <div class="col-md-3"><label class="form-label">Min experience (years)</label><input class="form-control" type="number" step="0.5" min="0" name="experience_min" value="0"></div>
-    <div class="col-md-3"><label class="form-label">Max experience (years)</label><input class="form-control" type="number" step="0.5" min="0" name="experience_max" value="0"></div>
-    <div class="col-md-3"><label class="form-label">Min salary</label><input class="form-control" type="number" min="0" name="salary_min"></div>
-    <div class="col-md-3"><label class="form-label">Max salary</label><input class="form-control" type="number" min="0" name="salary_max"></div>
-    <div class="col-md-6"><label class="form-label">Application deadline</label><input class="form-control" type="date" name="deadline"></div>
-  </div>
-  <button class="btn btn-primary mt-4" type="submit">Publish job</button>
+    <div class="col-md-6"><label class="form-label" for="job-skills">Skills</label><input class="form-control" id="job-skills" name="skills" value="{{ form_data.get('skills', job.skills|join(', ') if job else '') }}" placeholder="Python, SQL, teamwork"></div>
+    <div class="col-md-3"><label class="form-label" for="experience-min">Min experience (years)</label><input class="form-control" id="experience-min" type="number" step="0.5" min="0" name="experience_min" value="{{ form_data.get('experience_min', job.experience_min if job else 0) }}"></div>
+    <div class="col-md-3"><label class="form-label" for="experience-max">Max experience (years)</label><input class="form-control" id="experience-max" type="number" step="0.5" min="0" name="experience_max" value="{{ form_data.get('experience_max', job.experience_max if job else 0) }}"></div>
+  </div></section>
+  <section class="form-section"><h2 class="h5">3. Work arrangements and salary</h2>
+  <div class="row g-3">
+    <div class="col-md-6"><label class="form-label" for="job-location">Location</label><input class="form-control" id="job-location" name="location" value="{{ form_data.get('location', job.location if job else '') }}" placeholder="City or region"></div>
+    <div class="col-md-6"><label class="form-label" for="work-mode">Work mode</label><select class="form-select" id="work-mode" name="work_mode">{% for mode in ['ONSITE','HYBRID','REMOTE'] %}<option value="{{ mode }}" {% if form_data.get('work_mode', job.work_mode if job else 'ONSITE') == mode %}selected{% endif %}>{{ mode|title }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="form-label" for="employment-type">Employment type</label><select class="form-select" id="employment-type" name="employment_type">{% for kind in ['FULL_TIME','PART_TIME','INTERNSHIP','CONTRACT'] %}<option value="{{ kind }}" {% if form_data.get('employment_type', job.employment_type if job else 'FULL_TIME') == kind %}selected{% endif %}>{{ kind|replace('_',' ')|title }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label" for="salary-min">Min salary</label><input class="form-control" id="salary-min" type="number" min="0" name="salary_min" value="{{ form_data.get('salary_min', job.salary_min if job and job.salary_min is not none else '') }}"></div>
+    <div class="col-md-3"><label class="form-label" for="salary-max">Max salary</label><input class="form-control" id="salary-max" type="number" min="0" name="salary_max" value="{{ form_data.get('salary_max', job.salary_max if job and job.salary_max is not none else '') }}"></div>
+  </div></section>
+  <details class="advanced-options" {% if form_data.get('deadline') %}open{% endif %}><summary>4. Application deadline (optional)</summary><div class="pt-3"><label class="form-label" for="deadline">Close applications after</label><input class="form-control" type="date" id="deadline" name="deadline" value="{{ form_data.get('deadline', job.deadline.strftime('%Y-%m-%d') if job and job.deadline else '') }}"></div></details>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-4"><a class="btn btn-outline-secondary" href="{{ url_for('web.recruiter_jobs') }}">Cancel</a><button class="btn btn-primary px-4" type="submit">{{ 'Save changes' if job else 'Publish job' }}</button></div>
 </form></section>
 {% endblock %}

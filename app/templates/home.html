@@ -5,32 +5,18 @@
   <div class="container py-lg-5">
     <div class="row align-items-center g-4">
       <div class="col-lg-7">
-        <span class="badge text-bg-light text-primary mb-3">A better way to find your fit</span>
-        <h1 class="display-4 fw-bold mb-3">Your next chapter starts with the right opportunity.</h1>
-        <p class="lead text-secondary mb-4">Discover roles that match your skills, goals, and way of working.</p>
-        <form class="search-panel row g-2 p-2 bg-white rounded-4 shadow-sm" action="{{ url_for('web.jobs') }}">
-          <div class="col-md"><label class="visually-hidden" for="keyword">Job title or skill</label>
-            <input id="keyword" name="keyword" class="form-control form-control-lg border-0" placeholder="Job title or skill">
+        <span class="badge text-bg-light text-primary mb-3">A clearer way to find work</span>
+        <h1 class="display-4 fw-bold mb-3">Find work that fits your next step.</h1>
+        <p class="lead text-secondary mb-4">Search real openings by role, skills, and location. Keep your applications in one place.</p>
+        <form class="search-panel row g-2 p-2 bg-white rounded-3 border" action="{{ url_for('web.jobs') }}">
+          <div class="col-md"><label class="visually-hidden" for="keyword">Job title, skill, or company</label>
+            <input id="keyword" name="keyword" class="form-control form-control-lg border-0" placeholder="Job title, skill, or company">
           </div>
           <div class="col-md"><label class="visually-hidden" for="location">Location</label>
             <input id="location" name="location" class="form-control form-control-lg border-0" placeholder="City or remote">
           </div>
-          <div class="col-md-auto"><button class="btn btn-primary btn-lg w-100" type="submit">Explore jobs</button></div>
+          <div class="col-md-auto"><button class="btn btn-primary btn-lg w-100" type="submit">Find Jobs</button></div>
         </form>
-      </div>
-      <div class="col-lg-5 d-none d-lg-block">
-        <div class="hero-card p-4 rounded-4 bg-white shadow">
-          <div class="d-flex justify-content-between align-items-start">
-            <div><div class="small text-secondary">Your next move</div><h2 class="h4 mt-2">A role that fits you</h2></div>
-            <span class="match-pill">Great match</span>
-          </div>
-          <div class="match-bar my-4"><span></span></div>
-          <div class="row text-center g-2">
-            <div class="col"><div class="stat-tile"><strong>Skills</strong><small>Matched</small></div></div>
-            <div class="col"><div class="stat-tile"><strong>Growth</strong><small>Focused</small></div></div>
-            <div class="col"><div class="stat-tile"><strong>Goals</strong><small>Aligned</small></div></div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -45,10 +31,11 @@
     <div class="col-md-6 col-lg-4">
       <article class="card job-card h-100">
         <div class="card-body p-4">
-          <span class="badge rounded-pill text-bg-light">{{ job.work_mode|replace('_',' ')|title }}</span>
-          <h3 class="h5 mt-3"><a class="stretched-link text-decoration-none text-dark" href="{{ url_for('web.job_detail', job_id=job._id) }}">{{ job.title }}</a></h3>
-          <p class="text-secondary mb-2">{{ job.location or 'Location flexible' }}</p>
-          <div class="small text-secondary">{{ job.employment_type|replace('_',' ')|title }} · {{ job.skills[:3]|join(', ') }}</div>
+          <span class="status-label">{{ job.work_mode|replace('_',' ')|title }}</span>
+          <h3 class="h5 mt-3 mb-1"><a class="text-decoration-none text-dark" href="{{ url_for('web.job_detail', job_id=job._id) }}">{{ job.title }}</a></h3>
+          <p class="small mb-1">{{ companies.get(job.company_id|string, {}).get('name', 'Company') }}</p>
+          <p class="text-secondary mb-2">{{ job.location or 'Location flexible' }} · {{ job.employment_type|replace('_',' ')|title }}</p>
+          <div class="small text-secondary">{{ job.skills[:3]|join(', ') }}</div>
         </div>
       </article>
     </div>

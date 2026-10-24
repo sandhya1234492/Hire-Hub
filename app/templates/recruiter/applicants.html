@@ -2,7 +2,7 @@
 {% block title %}Applicants | HireHub{% endblock %}
 {% block content %}
 <section class="page-heading"><div class="container"><p class="eyebrow">Applicants</p><h1 class="h2">{{ job.title }}</h1></div></section>
-<section class="container py-4"><div class="row g-3">{% for application in applications %}
+<section class="container py-4"><div class="row g-3">{% for application in result["items"] %}
 <div class="col-lg-6"><article class="section-card h-100">
   <div class="d-flex justify-content-between gap-3"><div><h2 class="h5 mb-1">{{ application.candidate.name if application.candidate else 'Candidate' }}</h2><div class="small text-secondary">{{ application.candidate.email if application.candidate else '' }}</div></div><span class="badge text-bg-light h-100">{{ application.status|replace('_',' ')|title }}</span></div>
   {% if application.candidate %}<p class="small text-secondary mt-3 mb-2">{{ application.candidate.location or 'Location not set' }} · {{ application.candidate.experience_years or 0 }} years experience</p>
@@ -13,12 +13,14 @@
     <div class="col"><select class="form-select form-select-sm" name="status" aria-label="New status">
       {% if application.status == 'APPLIED' %}<option value="UNDER_REVIEW">Under review</option><option value="SHORTLISTED">Shortlist</option><option value="REJECTED">Reject</option>
       {% elif application.status == 'UNDER_REVIEW' %}<option value="SHORTLISTED">Shortlist</option><option value="REJECTED">Reject</option>
-      {% elif application.status == 'SHORTLISTED' %}<option value="INTERVIEW_SCHEDULED">Interview scheduled</option><option value="SELECTED">Select</option><option value="REJECTED">Reject</option>
+      {% elif application.status == 'SHORTLISTED' %}<option value="SELECTED">Select</option><option value="REJECTED">Reject</option>
       {% else %}<option value="SELECTED">Select</option><option value="REJECTED">Reject</option>{% endif %}
     </select></div>
     <div class="col-auto"><button class="btn btn-sm btn-primary">Update</button></div>
   </form>
   {% endif %}
 </article></div>
-{% else %}<div class="col"><div class="empty-state">No applications for this role yet.</div></div>{% endfor %}</div></section>
+{% else %}<div class="col"><div class="empty-state">No applications for this role yet.</div></div>{% endfor %}</div>
+{% if result.total > result.per_page %}<nav class="mt-4" aria-label="Applicant pages"><ul class="pagination justify-content-center">{% for page in range(1, ((result.total - 1) // result.per_page) + 2) %}<li class="page-item {% if page == result.page %}active{% endif %}"><a class="page-link" href="{{ url_for('web.applicants', job_id=job._id, page=page) }}">{{ page }}</a></li>{% endfor %}</ul></nav>{% endif %}
+</section>
 {% endblock %}

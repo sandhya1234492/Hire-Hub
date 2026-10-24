@@ -1,34 +1,46 @@
 {% extends "base.html" %}
 {% block title %}Find jobs | HireHub{% endblock %}
 {% block content %}
-<section class="page-heading"><div class="container"><p class="eyebrow">Find your fit</p><h1 class="h2 mb-2">Explore open jobs</h1><p class="text-secondary mb-0">Use a few filters to find the roles that fit you.</p></div></section>
+<section class="page-heading"><div class="container"><p class="eyebrow">Find your next opportunity</p><h1 class="h2 mb-2">Find Jobs</h1><p class="text-secondary mb-0">Search by role, skill, or company. Refine by location and work preferences.</p></div></section>
 <section class="container py-4">
-  <form class="filter-panel row g-3 mb-4">
-    <div class="col-lg-4"><label class="form-label" for="keyword">Keyword</label><input class="form-control" id="keyword" name="keyword" value="{{ request.args.get('keyword','') }}" placeholder="Title, skill, or keyword"></div>
-    <div class="col-md-6 col-lg-3"><label class="form-label" for="skill">Skill</label><input class="form-control" id="skill" name="skill" value="{{ request.args.get('skill','') }}" placeholder="e.g. Python"></div>
-    <div class="col-md-6 col-lg-3"><label class="form-label" for="location">Location</label><input class="form-control" id="location" name="location" value="{{ request.args.get('location','') }}" placeholder="City or region"></div>
-    <div class="col-md-6 col-lg-2"><label class="form-label" for="work-mode">Work mode</label><select class="form-select" name="work_mode" id="work-mode"><option value="">Any</option>{% for mode in ['REMOTE','HYBRID','ONSITE'] %}<option value="{{ mode }}" {% if request.args.get('work_mode','')|upper == mode %}selected{% endif %}>{{ mode|title }}</option>{% endfor %}</select></div>
-    <div class="col-md-4"><label class="form-label" for="employment">Employment</label><select class="form-select" name="employment_type" id="employment"><option value="">Any</option>{% for item in ['FULL_TIME','PART_TIME','INTERNSHIP','CONTRACT'] %}<option value="{{ item }}" {% if request.args.get('employment_type','')|upper == item %}selected{% endif %}>{{ item|replace('_',' ')|title }}</option>{% endfor %}</select></div>
-    <div class="col-md-4"><label class="form-label" for="min-salary">Minimum salary</label><input class="form-control" type="number" min="0" id="min-salary" name="min_salary" value="{{ request.args.get('min_salary','') }}"></div>
-    <div class="col-md-4 d-flex align-items-end"><button class="btn btn-primary w-100" type="submit">Apply filters</button></div>
+  <form class="search-panel section-card mb-4" action="{{ url_for('web.jobs') }}" method="get">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-6"><label class="form-label" for="keyword">Job title, skill, or company</label><input class="form-control form-control-lg" id="keyword" name="keyword" value="{{ request.args.get('keyword','') }}" placeholder="e.g. Python developer"></div>
+      <div class="col-md-4"><label class="form-label" for="location">Location</label><input class="form-control form-control-lg" id="location" name="location" value="{{ request.args.get('location','') }}" placeholder="City or region"></div>
+      <div class="col-md-2 d-grid"><button class="btn btn-primary btn-lg" type="submit">Search</button></div>
+      <div class="col-md-4"><label class="form-label" for="experience">Experience</label><input class="form-control" type="number" min="0" step="0.5" id="experience" name="experience" value="{{ request.args.get('experience','') }}" placeholder="Years"></div>
+      <div class="col-md-4"><label class="form-label" for="work-mode">Work mode</label><select class="form-select" name="work_mode" id="work-mode"><option value="">Any work mode</option>{% for mode in ['REMOTE','HYBRID','ONSITE'] %}<option value="{{ mode }}" {% if request.args.get('work_mode','')|upper == mode %}selected{% endif %}>{{ mode|title }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><label class="form-label" for="employment">Employment type</label><select class="form-select" name="employment_type" id="employment"><option value="">Any type</option>{% for item in ['FULL_TIME','PART_TIME','INTERNSHIP','CONTRACT'] %}<option value="{{ item }}" {% if request.args.get('employment_type','')|upper == item %}selected{% endif %}>{{ item|replace('_',' ')|title }}</option>{% endfor %}</select></div>
+      <div class="col-12"><details class="advanced-options"><summary>More filters</summary><div class="row g-3 pt-3">
+        <div class="col-md-4"><label class="form-label" for="skill">Skills <span class="text-secondary fw-normal">(comma separated)</span></label><input class="form-control" id="skill" name="skill" value="{{ request.args.get('skill','') }}" placeholder="Python, SQL"></div>
+        <div class="col-md-4"><label class="form-label" for="company">Company</label><input class="form-control" id="company" name="company" value="{{ request.args.get('company','') }}"></div>
+        <div class="col-md-2"><label class="form-label" for="min-salary">Min salary</label><input class="form-control" type="number" min="0" id="min-salary" name="min_salary" value="{{ request.args.get('min_salary','') }}"></div>
+        <div class="col-md-2"><label class="form-label" for="max-salary">Max salary</label><input class="form-control" type="number" min="0" id="max-salary" name="max_salary" value="{{ request.args.get('max_salary','') }}"></div>
+      </div></details></div>
+      <div class="col-md-5"><label class="form-label" for="sort">Sort by</label><select class="form-select" id="sort" name="sort"><option value="newest" {% if request.args.get('sort','newest') == 'newest' %}selected{% endif %}>Newest</option><option value="salary_desc" {% if request.args.get('sort') == 'salary_desc' %}selected{% endif %}>Highest salary</option><option value="salary_asc" {% if request.args.get('sort') == 'salary_asc' %}selected{% endif %}>Lowest salary</option></select></div>
+      <div class="col-md-7 d-flex align-items-end justify-content-md-end gap-3"><span class="small text-secondary">{{ result.total }} job{{ '' if result.total == 1 else 's' }} found</span><a href="{{ url_for('web.jobs') }}" class="small">Clear filters</a></div>
+    </div>
   </form>
-  <p class="small text-secondary">{{ result.total }} role{{ '' if result.total == 1 else 's' }} found</p>
   <div class="row g-3">
     {% for job in result["items"] %}
-    <div class="col-md-6 col-xl-4"><article class="card job-card h-100"><div class="card-body p-4">
-      <div class="d-flex justify-content-between gap-3"><span class="badge text-bg-light">{{ job.work_mode|title }}</span><span class="small text-secondary">{{ job.employment_type|replace('_',' ')|title }}</span></div>
-      <h2 class="h5 mt-3"><a class="text-decoration-none text-dark" href="{{ url_for('web.job_detail', job_id=job._id) }}">{{ job.title }}</a></h2>
+    <div class="col-md-6"><article class="job-card h-100"><div class="job-card-body">
+      <div class="d-flex justify-content-between gap-3"><span class="status-label">{{ job.work_mode|title }}</span><span class="small text-secondary">{{ job.employment_type|replace('_',' ')|title }}</span></div>
+      <h2 class="h5 mt-3 mb-1"><a class="text-decoration-none text-dark" href="{{ url_for('web.job_detail', job_id=job._id) }}">{{ job.title }}</a></h2>
       <p class="mb-1">{{ companies.get(job.company_id|string, {}).get('name', 'Company') }}</p>
-      <p class="text-secondary">{{ job.location or 'Location flexible' }}</p>
+      <p class="text-secondary mb-3">{{ job.location or 'Location flexible' }}{% if job.work_mode %} · {{ job.work_mode|title }}{% endif %}</p>
       <div class="d-flex flex-wrap gap-2">{% for skill in job.skills[:4] %}<span class="skill-tag">{{ skill }}</span>{% endfor %}</div>
       {% if job.salary_min or job.salary_max %}<p class="small text-secondary mt-3 mb-0">{{ job.salary_min or '—' }} – {{ job.salary_max or '—' }}</p>{% endif %}
+      <div class="d-flex gap-2 mt-4">
+      {% if current_user and current_user.role == 'CANDIDATE' %}{% if job._id|string in (current_user.saved_jobs or []) %}<span class="btn btn-sm btn-outline-secondary disabled">Saved</span>{% else %}<form method="post" action="{{ url_for('web.save_job', job_id=job._id) }}"><button class="btn btn-sm btn-outline-primary" type="submit">Save</button></form>{% endif %}{% endif %}
+      <a class="btn btn-sm btn-primary ms-auto" href="{{ url_for('web.job_detail', job_id=job._id) }}">View details</a>
+      </div>
     </div></article></div>
-    {% else %}<div class="col"><div class="empty-state">No matching roles. Try broadening your search.</div></div>{% endfor %}
+    {% else %}    <div class="col"><div class="empty-state"><h2 class="h5">No jobs match your filters</h2><p class="mb-3">Try a different keyword or remove a filter to see more opportunities.</p><a class="btn btn-outline-primary" href="{{ url_for('web.jobs') }}">Clear filters</a></div></div>{% endfor %}
   </div>
   {% if result.total > result.per_page %}
   <nav class="mt-4" aria-label="Job pages"><ul class="pagination justify-content-center">
     {% for page in range(1, ((result.total - 1) // result.per_page) + 2) %}
-    <li class="page-item {% if page == result.page %}active{% endif %}"><a class="page-link" href="{{ url_for('web.jobs', keyword=request.args.get('keyword',''), skill=request.args.get('skill',''), location=request.args.get('location',''), work_mode=request.args.get('work_mode',''), employment_type=request.args.get('employment_type',''), min_salary=request.args.get('min_salary',''), max_salary=request.args.get('max_salary',''), page=page) }}">{{ page }}</a></li>
+    <li class="page-item {% if page == result.page %}active{% endif %}"><a class="page-link" href="{{ url_for('web.jobs', keyword=filter_params.get('keyword',''), skill=filter_params.get('skill',''), location=filter_params.get('location',''), work_mode=filter_params.get('work_mode',''), employment_type=filter_params.get('employment_type',''), min_salary=filter_params.get('min_salary',''), max_salary=filter_params.get('max_salary',''), experience=filter_params.get('experience',''), company=filter_params.get('company',''), sort=filter_params.get('sort','newest'), page=page) }}">{{ page }}</a></li>
     {% endfor %}
   </ul></nav>
   {% endif %}

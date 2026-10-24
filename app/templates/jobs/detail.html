@@ -14,8 +14,8 @@
       <p class="mb-3"><strong>Experience</strong><br><span class="text-secondary">{{ job.experience_min or 0 }}–{{ job.experience_max or 'Any' }} years</span></p>
       {% if match %}<div class="match-summary mb-3"><strong>{{ match.score }}% match</strong><div class="small mt-1">Matched: {{ match.matched_skills|join(', ') or 'None yet' }}</div></div>{% endif %}
       {% if current_user and current_user.role == 'CANDIDATE' %}
-      <form method="post" action="{{ url_for('web.save_job', job_id=job._id) }}" class="mb-2"><button class="btn btn-outline-primary w-100" type="submit">Save job</button></form>
-      <form method="post" action="{{ url_for('web.apply_job', job_id=job._id) }}"><button class="btn btn-primary btn-lg w-100" type="submit">Apply for this job</button></form>
+      {% if applied %}<div class="alert alert-success py-2 small" role="status">Application submitted successfully.</div>{% else %}<form method="post" action="{{ url_for('web.apply_job', job_id=job._id) }}"><button class="btn btn-primary btn-lg w-100" type="submit">Apply for this job</button></form>{% endif %}
+      {% if saved %}<span class="btn btn-outline-secondary w-100 mt-2 disabled">Saved to your list</span>{% else %}<form method="post" action="{{ url_for('web.save_job', job_id=job._id) }}" class="mt-2"><button class="btn btn-outline-primary w-100" type="submit">Save for later</button></form>{% endif %}
       {% elif not current_user %}<a href="{{ url_for('web.login') }}" class="btn btn-primary btn-lg w-100">Sign in to apply</a>
       {% else %}<p class="small text-secondary mb-0">Candidate accounts can apply to this role.</p>{% endif %}
     </div></div>

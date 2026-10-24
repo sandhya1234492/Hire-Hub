@@ -47,6 +47,11 @@ class ApplicationNotFoundError(HireHubError):
     status_code = 404
 
 
+class InterviewNotFoundError(HireHubError):
+    error_code = "INTERVIEW_NOT_FOUND"
+    status_code = 404
+
+
 class InvalidApplicationStatusError(HireHubError):
     error_code = "INVALID_APPLICATION_STATUS"
     status_code = 400

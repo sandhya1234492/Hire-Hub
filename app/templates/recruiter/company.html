@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Company profile | HireHub{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="container"><p class="eyebrow">Recruiter workspace</p><h1 class="h2">Company profile</h1><p class="text-secondary mb-0">Verification status: {{ 'Verified' if company.verified else 'Pending review' }}</p></div></section>
+<section class="container py-4"><form method="post" class="section-card form-shell">
+  <div class="mb-3"><label class="form-label" for="name">Company name</label><input class="form-control" id="name" name="name" value="{{ company.name }}" required maxlength="160"></div>
+  <div class="row g-3">
+    <div class="col-md-6"><label class="form-label" for="website">Website</label><input class="form-control" id="website" name="website" type="url" value="{{ company.website or '' }}"></div>
+    <div class="col-md-6"><label class="form-label" for="industry">Industry</label><input class="form-control" id="industry" name="industry" value="{{ company.industry or '' }}"></div>
+    <div class="col-md-6"><label class="form-label" for="size">Company size</label><input class="form-control" id="size" name="size" value="{{ company.size or '' }}"></div>
+    <div class="col-md-6"><label class="form-label" for="location">Location</label><input class="form-control" id="location" name="location" value="{{ company.location or '' }}"></div>
+    <div class="col-12"><label class="form-label" for="description">Description</label><textarea class="form-control" id="description" name="description" rows="5">{{ company.description or '' }}</textarea></div>
+  </div>
+  {% if company.verified %}<p class="form-text mt-3">Updating company details will reset verification until an administrator reviews the changes.</p>{% endif %}
+  <button class="btn btn-primary mt-3">Save company profile</button>
+</form></section>
+{% endblock %}

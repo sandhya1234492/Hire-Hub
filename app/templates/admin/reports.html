@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Reports | HireHub{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="container"><p class="eyebrow">Administration</p><h1 class="h2">Reports</h1></div></section>
+<section class="container py-4">
+  <form method="get" class="section-card mb-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-4"><label class="form-label" for="type">Report</label><select class="form-select" id="type" name="type">{% for item in ['applications','recruitment','jobs','candidates','skills'] %}<option value="{{ item }}" {% if report_type == item %}selected{% endif %}>{{ item|title }}</option>{% endfor %}</select></div>
+      {% if report_type in ['applications','recruitment'] %}<div class="col-md-4"><label class="form-label" for="status">Application status</label><select class="form-select" id="status" name="status"><option value="">All statuses</option>{% for item in ['APPLIED','UNDER_REVIEW','SHORTLISTED','INTERVIEW_SCHEDULED','SELECTED','REJECTED','WITHDRAWN'] %}<option value="{{ item }}" {% if filters.get('status') == item %}selected{% endif %}>{{ item|replace('_',' ')|title }}</option>{% endfor %}</select></div>{% endif %}
+      {% if report_type in ['applications','recruitment','jobs'] %}<div class="col-md-4"><label class="form-label" for="company">Company</label><input class="form-control" id="company" name="company" value="{{ filters.get('company','') }}"></div>{% endif %}
+      <div class="col-md-4"><label class="form-label" for="location">Location</label><input class="form-control" id="location" name="location" value="{{ filters.get('location','') }}"></div>
+      {% if report_type in ['applications','recruitment'] %}
+      <div class="col-md-3"><label class="form-label" for="date_from">From</label><input class="form-control" type="date" id="date_from" name="date_from" value="{{ filters.get('date_from','') }}"></div>
+      <div class="col-md-3"><label class="form-label" for="date_to">To</label><input class="form-control" type="date" id="date_to" name="date_to" value="{{ filters.get('date_to','') }}"></div>
+      {% endif %}
+      <div class="col-md-2 d-flex gap-2"><button class="btn btn-primary">Apply</button><a class="btn btn-outline-secondary" href="{{ url_for('web.download_report', report_type=report_type, **filters.to_dict()) }}">CSV</a></div>
+    </div>
+  </form>
+  <div class="section-card">
+    <div class="d-flex justify-content-between mb-3"><h2 class="h5 mb-0">{{ report_type|title }} report</h2><span class="small text-secondary">{{ rows|length }} rows</span></div>
+    {% if rows %}<div class="table-responsive"><table class="table align-middle"><thead><tr>{% for header in headers %}<th scope="col">{{ header }}</th>{% endfor %}</tr></thead><tbody>{% for row in rows %}<tr>{% for value in row %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-state">No records match these report filters.</div>{% endif %}
+  </div>
+</section>
+{% endblock %}

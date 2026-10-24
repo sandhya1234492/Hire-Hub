@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Company verification | HireHub{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="container"><p class="eyebrow">Administration</p><h1 class="h2">Company verification</h1></div></section>
+<section class="container py-4"><div class="section-card table-responsive"><table class="table align-middle mb-0">
+<thead><tr><th>Company</th><th>Location</th><th>Website</th><th>Status</th><th></th></tr></thead><tbody>
+{% for company in result["items"] %}<tr><td>{{ company.name }}</td><td>{{ company.location or '—' }}</td><td>{% if company.website %}<a href="{{ company.website }}" rel="noopener noreferrer">{{ company.website }}</a>{% else %}—{% endif %}</td><td>{{ 'Verified' if company.verified else 'Pending' }}</td><td><form method="post" action="{{ url_for('web.verify_company', company_id=company._id) }}" {% if company.verified %}onsubmit="return confirm('Revoke verification for this company?')"{% endif %}><button class="btn btn-sm {{ 'btn-outline-secondary' if company.verified else 'btn-primary' }}">{{ 'Revoke' if company.verified else 'Verify' }}</button></form></td></tr>
+{% else %}<tr><td colspan="5" class="text-secondary">No companies found.</td></tr>{% endfor %}
+</tbody></table></div></section>
+{% from "partials/pagination.html" import render_pagination %}<section class="container pb-4">{{ render_pagination('web.admin_companies', result) }}</section>
+{% endblock %}

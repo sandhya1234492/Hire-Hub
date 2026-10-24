@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Job moderation | HireHub{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="container"><p class="eyebrow">Administration</p><h1 class="h2">Job moderation</h1></div></section>
+<section class="container py-4"><div class="section-card table-responsive"><table class="table align-middle mb-0">
+<thead><tr><th>Job</th><th>Company</th><th>Location</th><th>Status</th><th>Moderation</th></tr></thead><tbody>
+{% for job in result["items"] %}<tr><td>{{ job.title }}</td><td>{{ job.company.name if job.company else '—' }}</td><td>{{ job.location or '—' }}</td><td>{{ job.status|title }}</td><td>
+{% if job.status in ['OPEN','CLOSED'] %}<form method="post" action="{{ url_for('web.moderate_job', job_id=job._id) }}" {% if job.status == 'OPEN' %}onsubmit="return confirm('Close this job? Candidates will no longer be able to apply.')"{% endif %}><input type="hidden" name="status" value="{{ 'CLOSED' if job.status == 'OPEN' else 'OPEN' }}"><button class="btn btn-sm {{ 'btn-outline-danger' if job.status == 'OPEN' else 'btn-outline-primary' }}">{{ 'Close job' if job.status == 'OPEN' else 'Reopen job' }}</button></form>{% else %}<span class="small text-secondary">Expired jobs stay closed</span>{% endif %}
+</td></tr>{% else %}<tr><td colspan="5" class="text-secondary">No jobs found.</td></tr>{% endfor %}
+</tbody></table></div></section>
+{% from "partials/pagination.html" import render_pagination %}<section class="container pb-4">{{ render_pagination('web.admin_jobs', result) }}</section>
+{% endblock %}

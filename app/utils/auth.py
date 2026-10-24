@@ -15,7 +15,9 @@ def current_user_document():
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if not session.get("user_id"):
+        user = current_user_document() if session.get("user_id") else None
+        if not user or not user.get("is_active", True):
+            session.clear()
             if request.path.startswith("/api/"):
                 return jsonify(success=False, message="Login required", error_code="UNAUTHORIZED"), 401
             return redirect(url_for("web.login", next=request.path))

@@ -64,7 +64,8 @@ class ApplicationService:
             from app.exceptions import UnauthorizedError
             raise UnauthorizedError("You can only review applications for your own jobs.")
         status = str(status).upper()
-        if status not in self.TRANSITIONS.get(application["status"], set()) - {"WITHDRAWN"}:
+        allowed_transitions = self.TRANSITIONS.get(application["status"], set())
+        if status not in allowed_transitions - {"WITHDRAWN", "INTERVIEW_SCHEDULED"}:
             raise InvalidApplicationStatusError(
                 f"Cannot change application from {application['status']} to {status}."
             )

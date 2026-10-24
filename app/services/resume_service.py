@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from werkzeug.utils import secure_filename
 
-from app.exceptions import ResumeUploadError
+from app.exceptions import ResumeUploadError, UnauthorizedError
 from app.services.audit_service import AuditService
 
 
@@ -48,3 +48,19 @@ class ResumeService:
             candidate["_id"], "RESUME_UPLOADED", "resume", metadata["stored_name"]
         )
         return metadata
+
+    def delete(self, resume_id, candidate):
+        from app.repositories.base_repository import BaseRepository
+
+        repository = BaseRepository(self.database, "resumes")
+        resume = repository.get_by_id(resume_id)
+        if not resume or resume["candidate_id"] != candidate["_id"]:
+            raise UnauthorizedError("Resume not found or access denied.")
+        path = self.upload_folder / resume["stored_name"]
+        if path.is_file():
+            path.unlink()
+        self.database["resumes"].delete_one({"_id": resume["_id"]})
+        AuditService(self.database).record(
+            candidate["_id"], "RESUME_DELETED", "resume", resume["stored_name"]
+        )
+        return True

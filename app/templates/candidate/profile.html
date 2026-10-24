@@ -13,11 +13,13 @@
     <div class="col-md-6"><label class="form-label">Experience (years)</label><input class="form-control" type="number" step="0.5" min="0" name="experience_years" value="{{ user.experience_years or 0 }}"></div>
     <div class="col-md-6"><label class="form-label">Expected salary</label><input class="form-control" type="number" min="0" name="expected_salary" value="{{ user.expected_salary or '' }}"></div>
     <div class="col-12"><label class="form-label">Notice period</label><input class="form-control" name="notice_period" value="{{ user.notice_period or '' }}"></div>
+    <div class="col-12"><label class="form-label">Education</label><textarea class="form-control" name="education" rows="3" placeholder="Degree | Institution | Year">{% for item in user.education or [] %}{{ item.degree }} | {{ item.institution }} | {{ item.year }}{{ '\n' if not loop.last else '' }}{% endfor %}</textarea><div class="form-text">One entry per line, using Degree | Institution | Year.</div></div>
+    <div class="col-12"><label class="form-label">Experience</label><textarea class="form-control" name="experience" rows="3" placeholder="Title | Company | Years">{% for item in user.experience or [] %}{{ item.title }} | {{ item.company }} | {{ item.years }}{{ '\n' if not loop.last else '' }}{% endfor %}</textarea><div class="form-text">One entry per line, using Title | Company | Years. Leave empty if you have no experience.</div></div>
   </div>
   <button class="btn btn-primary mt-4" type="submit">Save profile</button>
 </form></div>
 <div class="col-lg-4"><div class="section-card"><h2 class="h5">Resume</h2>
-  {% if resume %}<p class="small text-secondary">{{ resume.filename }}</p><a class="btn btn-outline-primary btn-sm mb-3" href="{{ url_for('web.download_resume', resume_id=resume._id) }}">Download resume</a>{% else %}<p class="text-secondary small">Upload a PDF, DOC, or DOCX (up to 5 MB).</p>{% endif %}
+  {% if resume %}<p class="small text-secondary">{{ resume.filename }}</p><div class="d-flex gap-2 mb-3"><a class="btn btn-outline-primary btn-sm" href="{{ url_for('web.download_resume', resume_id=resume._id) }}">Download resume</a><form method="post" action="{{ url_for('web.delete_resume', resume_id=resume._id) }}"><button class="btn btn-outline-danger btn-sm">Delete</button></form></div>{% else %}<p class="text-secondary small">Upload a PDF, DOC, or DOCX (up to 5 MB).</p>{% endif %}
   <form method="post" action="{{ url_for('web.upload_resume') }}" enctype="multipart/form-data"><label class="form-label" for="resume">Choose a file</label><input class="form-control" type="file" id="resume" name="resume" accept=".pdf,.doc,.docx" required><button class="btn btn-primary mt-3" type="submit">{{ 'Replace resume' if resume else 'Upload resume' }}</button></form>
 </div></div>
 </div></section>

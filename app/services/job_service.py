@@ -1,8 +1,6 @@
 import re
 from datetime import datetime, timezone
 
-from bson import ObjectId
-
 from app.exceptions import JobNotFoundError, UnauthorizedError, ValidationError
 from app.repositories.base_repository import BaseRepository
 from app.repositories.job_repository import JobRepository
@@ -15,7 +13,17 @@ class JobService:
         self.jobs = JobRepository(database)
 
     def search(self, params):
-        query = {"status": "OPEN"}
+        now = datetime.now(timezone.utc)
+        query = {
+            "status": "OPEN",
+            "$and": [{
+                "$or": [
+                    {"deadline": {"$exists": False}},
+                    {"deadline": None},
+                    {"deadline": {"$gte": now}},
+                ]
+            }],
+        }
         for key, field in (
             ("location", "location"), ("work_mode", "work_mode"),
             ("employment_type", "employment_type"),
@@ -24,7 +32,14 @@ class JobService:
             if value:
                 query[field] = re.compile(re.escape(value.strip()), re.IGNORECASE)
         if params.get("skill"):
-            query["skills"] = {"$regex": re.escape(params["skill"].strip()), "$options": "i"}
+            skill_patterns = [
+                re.compile(re.escape(skill.strip()), re.IGNORECASE)
+                for skill in str(params["skill"]).split(",") if skill.strip()
+            ]
+            query["$and"].extend(
+                {"skills": {"$regex": pattern.pattern, "$options": "i"}}
+                for pattern in skill_patterns
+            )
         if params.get("company"):
             company_ids = [
                 item["_id"] for item in self.database["companies"].find(
@@ -35,10 +50,19 @@ class JobService:
             query["company_id"] = {"$in": company_ids}
         if params.get("keyword"):
             pattern = re.compile(re.escape(params["keyword"].strip()), re.IGNORECASE)
-            query["$or"] = [
+            keyword_match = [
                 {"title": pattern}, {"description": pattern}, {"skills": pattern},
                 {"location": pattern},
             ]
+            company_ids = [
+                item["_id"] for item in self.database["companies"].find(
+                    {"name": {"$regex": re.escape(params["keyword"].strip()), "$options": "i"}},
+                    {"_id": 1},
+                )
+            ]
+            if company_ids:
+                keyword_match.append({"company_id": {"$in": company_ids}})
+            query["$and"].append({"$or": keyword_match})
         for param, operator in (("min_salary", "$gte"), ("max_salary", "$lte")):
             raw_value = params.get(param)
             if raw_value:
@@ -51,7 +75,7 @@ class JobService:
                 query.setdefault("salary_max" if operator == "$gte" else "salary_min", {})[
                     operator
                 ] = amount
-        if params.get("experience") is not None:
+        if params.get("experience") not in (None, ""):
             try:
                 experience = float(params.get("experience"))
                 if experience < 0:
@@ -66,7 +90,15 @@ class JobService:
             raise ValidationError("Page values must be integers.") from error
         if page < 1 or per_page < 1:
             raise ValidationError("Page values must be positive.")
-        return self.jobs.search(query, page=page, per_page=per_page)
+        sort_options = {
+            "newest": ("created_at", -1),
+            "salary_asc": ("salary_min", 1),
+            "salary_desc": ("salary_max", -1),
+        }
+        sort = str(params.get("sort", "newest")).lower()
+        if sort not in sort_options:
+            raise ValidationError("Select a valid sort order.")
+        return self.jobs.search(query, page=page, per_page=per_page, sort=sort_options[sort])
 
     def get(self, job_id):
         job = self.jobs.get_by_id(job_id)
@@ -127,6 +159,8 @@ class JobService:
                 )
             except ValueError as error:
                 raise ValidationError("Deadline must be a valid date.") from error
+            if document["deadline"].date() < now.date():
+                raise ValidationError("Deadline cannot be in the past.")
         job_id = self.jobs.insert(document)
         AuditService(self.database).record(
             recruiter["_id"], "JOB_CREATED", "job", job_id, {"title": title}
@@ -146,11 +180,54 @@ class JobService:
             for field in ("title", "description", "location"):
                 if field in data:
                     value = str(data[field]).strip()
-                    if field == "title" and not value:
-                        raise ValidationError("Job title cannot be empty.")
+                    if field in {"title", "description"} and not value:
+                        raise ValidationError(f"Job {field} cannot be empty.")
+                    if field == "title":
+                        value = value[:160]
+                    if field == "location":
+                        value = value[:120]
                     changes[field] = value
             if "skills" in data:
                 changes["skills"] = AuthSkills.normalise(data["skills"])
+            numeric_fields = {
+                "salary_min": self._number,
+                "salary_max": self._number,
+                "experience_min": lambda value: float(value or 0),
+                "experience_max": lambda value: float(value or 0),
+            }
+            for field, parser in numeric_fields.items():
+                if field in data:
+                    try:
+                        changes[field] = parser(data[field])
+                    except (TypeError, ValueError) as error:
+                        raise ValidationError(f"{field} must be a non-negative number.") from error
+                    if changes[field] is not None and changes[field] < 0:
+                        raise ValidationError(f"{field} cannot be negative.")
+            minimum_experience = changes.get("experience_min", job.get("experience_min", 0))
+            maximum_experience = changes.get("experience_max", job.get("experience_max", 0))
+            if maximum_experience < minimum_experience:
+                raise ValidationError("Experience range is invalid.")
+            minimum_salary = changes.get("salary_min", job.get("salary_min"))
+            maximum_salary = changes.get("salary_max", job.get("salary_max"))
+            if (
+                minimum_salary is not None and maximum_salary is not None
+                and maximum_salary < minimum_salary
+            ):
+                raise ValidationError("Salary range is invalid.")
+            if "deadline" in data:
+                deadline = str(data.get("deadline", "")).strip()
+                if not deadline:
+                    changes["deadline"] = None
+                else:
+                    try:
+                        parsed_deadline = datetime.fromisoformat(deadline).replace(
+                            tzinfo=timezone.utc
+                        )
+                    except ValueError as error:
+                        raise ValidationError("Deadline must be a valid date.") from error
+                    if parsed_deadline.date() < datetime.now(timezone.utc).date():
+                        raise ValidationError("Deadline cannot be in the past.")
+                    changes["deadline"] = parsed_deadline
             for field, choices in (
                 ("work_mode", {"REMOTE", "HYBRID", "ONSITE"}),
                 ("employment_type", {"FULL_TIME", "PART_TIME", "INTERNSHIP", "CONTRACT"}),

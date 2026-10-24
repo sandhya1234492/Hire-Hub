@@ -1,0 +1,28 @@
+<nav class="role-navigation" aria-label="Main navigation">
+  {% if current_user.role == 'CANDIDATE' %}
+  <p class="nav-group-label">Candidate</p>
+  <a class="side-link {% if request.endpoint == 'web.dashboard' %}active{% endif %}" href="{{ url_for('web.dashboard') }}">Dashboard</a>
+  <a class="side-link {% if request.endpoint in ['web.jobs','web.job_detail'] %}active{% endif %}" href="{{ url_for('web.jobs') }}">Find Jobs</a>
+  <a class="side-link {% if request.endpoint == 'web.applications' %}active{% endif %}" href="{{ url_for('web.applications') }}">My Applications</a>
+  <a class="side-link {% if request.endpoint == 'web.saved_jobs' %}active{% endif %}" href="{{ url_for('web.saved_jobs') }}">Saved Jobs</a>
+  <a class="side-link {% if request.endpoint == 'web.interviews' %}active{% endif %}" href="{{ url_for('web.interviews') }}">Interviews</a>
+  <a class="side-link {% if request.endpoint == 'web.profile' %}active{% endif %}" href="{{ url_for('web.profile') }}">My Profile</a>
+  {% elif current_user.role == 'RECRUITER' %}
+  <p class="nav-group-label">Recruiter</p>
+  <a class="side-link {% if request.endpoint == 'web.dashboard' %}active{% endif %}" href="{{ url_for('web.dashboard') }}">Dashboard</a>
+  <a class="side-link {% if request.endpoint in ['web.recruiter_jobs','web.edit_job'] %}active{% endif %}" href="{{ url_for('web.recruiter_jobs') }}">My Jobs</a>
+  <a class="side-link {% if request.endpoint in ['web.recruiter_applications','web.applicants'] %}active{% endif %}" href="{{ url_for('web.recruiter_applications') }}">Applicants</a>
+  <a class="side-link {% if request.endpoint == 'web.create_job' %}active{% endif %}" href="{{ url_for('web.create_job') }}">Post a Job</a>
+  <a class="side-link {% if request.endpoint == 'web.interviews' %}active{% endif %}" href="{{ url_for('web.interviews') }}">Interviews</a>
+  <a class="side-link {% if request.endpoint == 'web.recruiter_company' %}active{% endif %}" href="{{ url_for('web.recruiter_company') }}">Company Profile</a>
+  {% else %}
+  <p class="nav-group-label">Administration</p>
+  <a class="side-link {% if request.endpoint == 'web.admin_dashboard' %}active{% endif %}" href="{{ url_for('web.admin_dashboard') }}">Dashboard</a>
+  <a class="side-link {% if request.endpoint == 'web.admin_users' %}active{% endif %}" href="{{ url_for('web.admin_users') }}">Users</a>
+  <a class="side-link {% if request.endpoint == 'web.admin_companies' %}active{% endif %}" href="{{ url_for('web.admin_companies') }}">Companies</a>
+  <a class="side-link {% if request.endpoint == 'web.admin_jobs' %}active{% endif %}" href="{{ url_for('web.admin_jobs') }}">Jobs</a>
+  <a class="side-link {% if request.endpoint in ['web.admin_reports','web.download_report'] %}active{% endif %}" href="{{ url_for('web.admin_reports') }}">Reports</a>
+  <a class="side-link {% if request.endpoint == 'web.admin_audit_logs' %}active{% endif %}" href="{{ url_for('web.admin_audit_logs') }}">Audit Logs</a>
+  <div class="side-secondary"><a class="side-link {% if request.endpoint == 'web.admin_analytics' %}active{% endif %}" href="{{ url_for('web.admin_analytics') }}">Analytics</a><a class="side-link {% if request.endpoint == 'web.admin_applications' %}active{% endif %}" href="{{ url_for('web.admin_applications') }}">Applications</a></div>
+  {% endif %}
+</nav>

@@ -3,22 +3,25 @@
 {% block content %}
 <section class="auth-wrap container py-5">
   <div class="auth-card mx-auto">
-    <p class="eyebrow">Get started</p><h1 class="h2 mb-2">Create your account</h1>
-    <p class="text-secondary mb-4">Join candidates and recruiters finding their next fit.</p>
+    <p class="eyebrow">Get started · 1 of 3</p><h1 class="h2 mb-2">Create your account</h1>
+    <p class="text-secondary mb-4">Choose how you will use HireHub, then add your details.</p>
+    {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
     <form method="post">
       <div class="mb-3"><label class="form-label" for="role">I am a</label>
         <select class="form-select form-select-lg" name="role" id="role">
-          <option value="CANDIDATE">Candidate</option><option value="RECRUITER">Recruiter</option>
+          <option value="CANDIDATE" {% if form_data.get('role','CANDIDATE') == 'CANDIDATE' %}selected{% endif %}>Candidate</option><option value="RECRUITER" {% if form_data.get('role') == 'RECRUITER' %}selected{% endif %}>Recruiter</option>
         </select>
       </div>
-      <div class="mb-3"><label class="form-label" for="name">Full name</label><input class="form-control" name="name" id="name" required maxlength="120" autocomplete="name"></div>
+      <p class="form-step-label">Personal details</p>
+      <div class="mb-3"><label class="form-label" for="name">Full name <span class="required-mark">Required</span></label><input class="form-control" name="name" id="name" value="{{ form_data.get('name','') }}" required maxlength="120" autocomplete="name"></div>
       <div class="row g-3 mb-3">
-        <div class="col-md-7"><label class="form-label" for="reg-email">Email</label><input class="form-control" type="email" name="email" id="reg-email" required autocomplete="email"></div>
-        <div class="col-md-5"><label class="form-label" for="phone">Phone</label><input class="form-control" type="tel" name="phone" id="phone" autocomplete="tel"></div>
+        <div class="col-md-7"><label class="form-label" for="reg-email">Email <span class="required-mark">Required</span></label><input class="form-control" type="email" name="email" id="reg-email" value="{{ form_data.get('email','') }}" required autocomplete="email"></div>
+        <div class="col-md-5"><label class="form-label" for="phone">Phone</label><input class="form-control" type="tel" name="phone" id="phone" value="{{ form_data.get('phone','') }}" autocomplete="tel"></div>
       </div>
-      <div class="mb-3 d-none" id="company-field"><label class="form-label" for="company">Company name</label><input class="form-control" name="company_name" id="company"></div>
-      <div class="mb-3"><label class="form-label" for="reg-password">Password</label><input class="form-control" type="password" name="password" id="reg-password" required minlength="8" autocomplete="new-password"></div>
-      <div class="mb-4"><label class="form-label" for="confirm-password">Confirm password</label><input class="form-control" type="password" name="confirm_password" id="confirm-password" required minlength="8" autocomplete="new-password"></div>
+      <div class="mb-3 d-none" id="company-field"><label class="form-label" for="company">Company name <span class="required-mark">Required</span></label><input class="form-control" name="company_name" id="company" value="{{ form_data.get('company_name','') }}"></div>
+      <p class="form-step-label mt-4">Create your sign-in</p>
+      <div class="mb-3"><label class="form-label" for="reg-password">Password <span class="required-mark">Required</span></label><input class="form-control" type="password" name="password" id="reg-password" required minlength="8" autocomplete="new-password"><div class="form-text">Use at least 8 characters.</div></div>
+      <div class="mb-4"><label class="form-label" for="confirm-password">Confirm password <span class="required-mark">Required</span></label><input class="form-control" type="password" name="confirm_password" id="confirm-password" required minlength="8" autocomplete="new-password"></div>
       <button class="btn btn-primary btn-lg w-100" type="submit">Create account</button>
     </form>
     <p class="text-center text-secondary mt-4 mb-0">Already registered? <a href="{{ url_for('web.login') }}">Sign in</a></p>

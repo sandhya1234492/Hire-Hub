@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
 import csv
 import io
+from datetime import date
+from urllib.parse import urlsplit
 
-from bson import ObjectId
 from flask import (
     Blueprint, Response, abort, current_app, flash, redirect, render_template,
     request, send_from_directory, session, url_for,
@@ -12,13 +12,17 @@ from werkzeug.utils import secure_filename
 from app.exceptions import HireHubError, UnauthorizedError, ValidationError
 from app.extensions import get_database
 from app.repositories.application_repository import ApplicationRepository
+from app.repositories.admin_repository import AdminRepository
 from app.repositories.base_repository import BaseRepository
 from app.repositories.user_repository import UserRepository
 from app.services.application_service import ApplicationService
+from app.services.admin_service import AdminService
 from app.services.auth_service import AuthService
+from app.services.company_service import CompanyService
+from app.services.interview_service import InterviewService
 from app.services.job_service import JobService
 from app.services.matching_service import MatchingService
-from app.services.notification_service import NotificationService
+from app.services.report_service import ReportService
 from app.services.resume_service import ResumeService
 from app.utils.auth import current_user_document, login_required, role_required
 
@@ -27,38 +31,61 @@ web = Blueprint("web", __name__)
 
 @web.app_errorhandler(HireHubError)
 def handle_domain_error(error):
-    flash(str(error), "danger")
-    return redirect(request.referrer or url_for("web.home")), error.status_code
+    return render_template("errors/error.html", message=str(error)), error.status_code
 
 
 @web.get("/")
 def home():
     jobs = JobService(get_database()).search({"page": 1, "per_page": 6})
-    return render_template("home.html", jobs=jobs["items"])
+    companies = {
+        str(company["_id"]): company for company in get_database()["companies"].find(
+            {"_id": {"$in": [job["company_id"] for job in jobs["items"]]}}
+        )
+    }
+    return render_template("home.html", jobs=jobs["items"], companies=companies)
 
 
 @web.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        user = AuthService(get_database()).register(request.form)
+        try:
+            user = AuthService(get_database()).register(request.form)
+        except HireHubError as error:
+            return render_template(
+                "auth/register.html", error=str(error), form_data=request.form
+            ), error.status_code
         session.clear()
         session["user_id"] = str(user["_id"])
         session.permanent = True
         flash("Welcome to HireHub. Your account is ready.", "success")
         return redirect(url_for("web.dashboard"))
-    return render_template("auth/register.html")
+    return render_template("auth/register.html", form_data={})
 
 
 @web.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        user = AuthService(get_database()).authenticate(
-            request.form.get("email"), request.form.get("password")
-        )
+        try:
+            user = AuthService(get_database()).authenticate(
+                request.form.get("email"), request.form.get("password")
+            )
+        except HireHubError as error:
+            return render_template(
+                "auth/login.html", error=str(error), email=request.form.get("email", "")
+            ), error.status_code
         session.clear()
         session["user_id"] = str(user["_id"])
         session.permanent = True
-        return redirect(request.args.get("next") or url_for("web.dashboard"))
+        if user["role"] == "ADMIN":
+            return redirect(url_for("web.admin_dashboard"))
+        destination = request.args.get("next", "")
+        parsed = urlsplit(destination)
+        if (
+            not destination.startswith("/") or destination.startswith("//")
+            or "\\" in destination or parsed.netloc or parsed.scheme
+        ):
+            destination = url_for("web.dashboard")
+        return redirect(destination)
     return render_template("auth/login.html")
 
 
@@ -76,13 +103,17 @@ def logout():
 @web.get("/jobs")
 def jobs():
     result = JobService(get_database()).search(request.args)
+    filter_params = request.args.to_dict()
+    filter_params.pop("page", None)
     companies = {
         str(company["_id"]): company
         for company in get_database()["companies"].find(
             {"_id": {"$in": [job["company_id"] for job in result["items"]]}}
         )
     }
-    return render_template("jobs/list.html", result=result, companies=companies)
+    return render_template(
+        "jobs/list.html", result=result, companies=companies, filter_params=filter_params
+    )
 
 
 @web.get("/jobs/<job_id>")
@@ -91,7 +122,13 @@ def job_detail(job_id):
     job["company"] = get_database()["companies"].find_one({"_id": job["company_id"]})
     user = current_user_document()
     match = MatchingService().calculate(user, job) if user and user["role"] == "CANDIDATE" else None
-    return render_template("jobs/detail.html", job=job, match=match)
+    applied = bool(user and user["role"] == "CANDIDATE" and get_database()["applications"].find_one({
+        "candidate_id": user["_id"], "job_id": job["_id"],
+    }))
+    saved = bool(user and user["role"] == "CANDIDATE" and str(job["_id"]) in [
+        str(item) for item in user.get("saved_jobs", [])
+    ])
+    return render_template("jobs/detail.html", job=job, match=match, applied=applied, saved=saved)
 
 
 @web.post("/jobs/<job_id>/apply")
@@ -147,13 +184,30 @@ def dashboard():
         ))
         for application in applications:
             application["job"] = db["jobs"].find_one({"_id": application["job_id"]})
-        notifications = list(db["notifications"].find(
-            {"user_id": user["_id"]}, sort=[("created_at", -1)], limit=5
-        ))
+        upcoming_interviews = list(db["interviews"].find({
+            "candidate_id": user["_id"], "status": "SCHEDULED",
+            "date": {"$gte": date.today().isoformat()},
+        }).sort([("date", 1), ("time", 1)]).limit(3))
+        for interview in upcoming_interviews:
+            application = db["applications"].find_one({"_id": interview["application_id"]})
+            interview["job"] = db["jobs"].find_one(
+                {"_id": application["job_id"]}
+            ) if application else None
         recommendations = JobService(db).search({"page": 1, "per_page": 50})["items"]
+        applied_job_ids = {
+            str(item["job_id"]) for item in db["applications"].find(
+                {"candidate_id": user["_id"]}, {"job_id": 1}
+            )
+        }
         recommendations = [
-            {"job": job, **MatchingService().calculate(user, job)}
-            for job in recommendations
+            {
+                "job": {
+                    **job,
+                    "company": db["companies"].find_one({"_id": job["company_id"]}),
+                },
+                **MatchingService().calculate(user, job),
+            }
+            for job in recommendations if str(job["_id"]) not in applied_job_ids
         ]
         recommendations.sort(key=lambda item: item["score"], reverse=True)
         stats = {
@@ -166,37 +220,61 @@ def dashboard():
                 {"candidate_id": user["_id"], "status": "SELECTED"}
             ),
             "saved_jobs": len(user.get("saved_jobs", [])),
+            "unread_notifications": db["notifications"].count_documents({
+                "user_id": user["_id"], "read": False,
+            }),
         }
+        profile_fields = (
+            bool(user.get("name")), bool(user.get("email")), bool(user.get("phone")),
+            bool(user.get("location")), bool(user.get("skills")),
+            bool(user.get("education")), bool(user.get("experience")),
+            bool(user.get("expected_salary")),
+            db["resumes"].count_documents({"candidate_id": user["_id"]}) > 0,
+        )
+        stats["profile_completion"] = round(
+            sum(profile_fields) / len(profile_fields) * 100
+        )
         return render_template(
             "candidate/dashboard.html", user=user, applications=applications,
-            notifications=notifications, recommendations=recommendations[:5], stats=stats,
+            recommendations=recommendations[:3], upcoming_interviews=upcoming_interviews,
+            stats=stats,
         )
     if user["role"] == "RECRUITER":
-        jobs = list(db["jobs"].find({"recruiter_id": user["_id"]}, sort=[("created_at", -1)]))
-        job_ids = [job["_id"] for job in jobs]
+        jobs = list(db["jobs"].find(
+            {"recruiter_id": user["_id"]}, sort=[("created_at", -1)], limit=8
+        ))
+        all_job_ids = [job["_id"] for job in db["jobs"].find(
+            {"recruiter_id": user["_id"]}, {"_id": 1}
+        )]
         recent_applications = list(db["applications"].find(
-            {"job_id": {"$in": job_ids}}, sort=[("applied_at", -1)], limit=10
+            {"job_id": {"$in": all_job_ids}}, sort=[("applied_at", -1)], limit=5
         ))
         for application in recent_applications:
             application["job"] = db["jobs"].find_one({"_id": application["job_id"]})
             application["candidate"] = UserRepository(db).get_by_id(application["candidate_id"])
+        total_jobs = db["jobs"].count_documents({"recruiter_id": user["_id"]})
         stats = {
-            "jobs": len(jobs), "active_jobs": sum(job["status"] == "OPEN" for job in jobs),
-            "applications": db["applications"].count_documents({"job_id": {"$in": job_ids}}),
+            "active_jobs": db["jobs"].count_documents({
+                "recruiter_id": user["_id"], "status": "OPEN",
+            }),
+            "applications": db["applications"].count_documents({"job_id": {"$in": all_job_ids}}),
+            "shortlisted": db["applications"].count_documents({
+                "job_id": {"$in": all_job_ids}, "status": "SHORTLISTED",
+            }),
+            "interviews": db["interviews"].count_documents({
+                "recruiter_id": user["_id"], "status": "SCHEDULED",
+                "date": {"$gte": date.today().isoformat()},
+            }),
+            "selections": db["applications"].count_documents({
+                "job_id": {"$in": all_job_ids}, "status": "SELECTED",
+            }),
         }
         return render_template(
-            "recruiter/dashboard.html", user=user, jobs=jobs[:8],
+            "recruiter/dashboard.html", user=user, jobs=jobs,
+            total_jobs=total_jobs,
             applications=recent_applications, stats=stats,
         )
-    stats = {
-        "users": db["users"].count_documents({}),
-        "candidates": db["users"].count_documents({"role": "CANDIDATE"}),
-        "recruiters": db["users"].count_documents({"role": "RECRUITER"}),
-        "companies": db["companies"].count_documents({}),
-        "jobs": db["jobs"].count_documents({}),
-        "applications": db["applications"].count_documents({}),
-    }
-    return render_template("admin/dashboard.html", user=user, stats=stats)
+    return redirect(url_for("web.admin_dashboard"))
 
 
 @web.route("/profile", methods=["GET", "POST"])
@@ -212,12 +290,29 @@ def profile():
             "skills": AuthService._skills(request.form.get("skills", "")),
             "notice_period": request.form.get("notice_period", "").strip(),
         }
+        if not changes["name"] or len(changes["name"]) > 120:
+            raise ValidationError("Enter a name no longer than 120 characters.")
         try:
-            changes["experience_years"] = max(0, float(request.form.get("experience_years") or 0))
+            changes["experience_years"] = float(request.form.get("experience_years") or 0)
             salary = request.form.get("expected_salary", "").strip()
             changes["expected_salary"] = float(salary) if salary else None
+            changes["education"] = _parse_profile_entries(
+                request.form.get("education", ""), ("degree", "institution", "year"),
+                numeric_field="year", integer=True,
+            )
+            changes["experience"] = _parse_profile_entries(
+                request.form.get("experience", ""), ("title", "company", "years"),
+                numeric_field="years",
+            )
         except ValueError as error:
-            raise ValidationError("Experience and expected salary must be numbers.") from error
+            raise ValidationError(
+                "Check profile values. Experience and salary must be numbers; "
+                "education and experience entries must use pipe-separated fields."
+            ) from error
+        if changes["experience_years"] < 0 or (
+            changes["expected_salary"] is not None and changes["expected_salary"] < 0
+        ):
+            raise ValidationError("Experience and expected salary cannot be negative.")
         UserRepository(db).update(user["_id"], changes)
         flash("Your profile was updated.", "success")
         return redirect(url_for("web.profile"))
@@ -235,6 +330,16 @@ def upload_resume():
     return redirect(url_for("web.profile"))
 
 
+@web.post("/resume/<resume_id>/delete")
+@role_required("CANDIDATE")
+def delete_resume(resume_id):
+    ResumeService(
+        get_database(), current_app.config["UPLOAD_FOLDER"]
+    ).delete(resume_id, current_user_document())
+    flash("Resume deleted.", "success")
+    return redirect(url_for("web.profile"))
+
+
 @web.get("/resume/<resume_id>")
 @login_required
 def download_resume(resume_id):
@@ -245,7 +350,18 @@ def download_resume(resume_id):
     user = current_user_document()
     if not resume:
         abort(404)
-    if user["role"] not in {"RECRUITER", "ADMIN"} and user["_id"] != resume["candidate_id"]:
+    if user["role"] == "RECRUITER":
+        job_ids = [item["_id"] for item in get_database()["jobs"].find(
+            {"recruiter_id": user["_id"]}, {"_id": 1}
+        )]
+        authorized = get_database()["applications"].find_one({
+            "candidate_id": resume["candidate_id"], "job_id": {"$in": job_ids},
+        })
+        if not authorized:
+            raise UnauthorizedError(
+                "You can only access resumes for candidates who applied to your jobs."
+            )
+    elif user["role"] != "ADMIN" and user["_id"] != resume["candidate_id"]:
         raise UnauthorizedError("You cannot access this resume.")
     return send_from_directory(
         current_app.config["UPLOAD_FOLDER"], resume["stored_name"], as_attachment=True,
@@ -275,15 +391,16 @@ def saved_jobs():
         (BaseRepository.object_id(item) for item in user.get("saved_jobs", []))
         if object_id is not None
     ]
-    jobs = list(get_database()["jobs"].find(
-        {"_id": {"$in": job_ids}}, sort=[("created_at", -1)]
-    ))
+    result = BaseRepository(get_database(), "jobs").list(
+        {"_id": {"$in": job_ids}}, page=request.args.get("page", 1),
+        sort=("created_at", -1),
+    )
     companies = {
         str(company["_id"]): company for company in get_database()["companies"].find(
-            {"_id": {"$in": [job["company_id"] for job in jobs]}}
+            {"_id": {"$in": [job["company_id"] for job in result["items"]]}}
         )
     }
-    return render_template("candidate/saved_jobs.html", jobs=jobs, companies=companies)
+    return render_template("candidate/saved_jobs.html", result=result, companies=companies)
 
 
 @web.get("/interviews")
@@ -312,6 +429,16 @@ def interviews():
     return render_template("interviews.html", result=result)
 
 
+@web.post("/recruiter/interviews/<interview_id>/update")
+@role_required("RECRUITER")
+def update_interview(interview_id):
+    InterviewService(get_database()).update(
+        interview_id, request.form, current_user_document()
+    )
+    flash("Interview updated.", "success")
+    return redirect(url_for("web.interviews"))
+
+
 @web.get("/recruiter/jobs")
 @role_required("RECRUITER")
 def recruiter_jobs():
@@ -322,14 +449,82 @@ def recruiter_jobs():
     return render_template("recruiter/jobs.html", result=result)
 
 
+@web.get("/recruiter/applications")
+@role_required("RECRUITER")
+def recruiter_applications():
+    user = current_user_document()
+    job_ids = [job["_id"] for job in get_database()["jobs"].find(
+        {"recruiter_id": user["_id"]}, {"_id": 1}
+    )]
+    query = {"job_id": {"$in": job_ids}}
+    status = str(request.args.get("status", "")).upper()
+    if status:
+        if status not in ApplicationService.TRANSITIONS:
+            raise ValidationError("Select a valid application status.")
+        query["status"] = status
+    result = BaseRepository(get_database(), "applications").list(
+        query, page=request.args.get("page", 1),
+        sort=("applied_at", -1),
+    )
+    for application in result["items"]:
+        application["job"] = get_database()["jobs"].find_one({"_id": application["job_id"]})
+        application["candidate"] = UserRepository(get_database()).get_by_id(
+            application["candidate_id"]
+        )
+        application["resume"] = get_database()["resumes"].find_one(
+            {"candidate_id": application["candidate_id"]}
+        )
+    return render_template("recruiter/applications.html", result=result, status=status)
+
+
+@web.route("/recruiter/company", methods=["GET", "POST"])
+@role_required("RECRUITER")
+def recruiter_company():
+    service = CompanyService(get_database())
+    recruiter = current_user_document()
+    if request.method == "POST":
+        service.update_for_recruiter(request.form, recruiter)
+        flash("Company profile updated. Material changes require verification.", "success")
+        return redirect(url_for("web.recruiter_company"))
+    return render_template(
+        "recruiter/company.html", company=service.get_for_recruiter(recruiter)
+    )
+
+
 @web.route("/recruiter/jobs/new", methods=["GET", "POST"])
 @role_required("RECRUITER")
 def create_job():
     if request.method == "POST":
-        JobService(get_database()).create(request.form, current_user_document())
+        try:
+            JobService(get_database()).create(request.form, current_user_document())
+        except HireHubError as error:
+            return render_template(
+                "recruiter/job_form.html", job=None, form_data=request.form,
+                error=str(error),
+            ), error.status_code
         flash("Job published successfully.", "success")
         return redirect(url_for("web.recruiter_jobs"))
-    return render_template("recruiter/job_form.html")
+    return render_template("recruiter/job_form.html", job=None, form_data={})
+
+
+@web.route("/recruiter/jobs/<job_id>/edit", methods=["GET", "POST"])
+@role_required("RECRUITER")
+def edit_job(job_id):
+    service = JobService(get_database())
+    job = service.get(job_id)
+    if job["recruiter_id"] != current_user_document()["_id"]:
+        raise UnauthorizedError("You can only manage your own jobs.")
+    if request.method == "POST":
+        try:
+            service.update(job_id, request.form, current_user_document())
+        except HireHubError as error:
+            return render_template(
+                "recruiter/job_form.html", job=job, form_data=request.form,
+                error=str(error),
+            ), error.status_code
+        flash("Job updated successfully.", "success")
+        return redirect(url_for("web.recruiter_jobs"))
+    return render_template("recruiter/job_form.html", job=job, form_data={})
 
 
 @web.post("/recruiter/jobs/<job_id>/close")
@@ -346,13 +541,14 @@ def applicants(job_id):
     job = JobService(get_database()).get(job_id)
     if job["recruiter_id"] != current_user_document()["_id"]:
         raise UnauthorizedError("You can only access applicants for your own jobs.")
-    rows = list(get_database()["applications"].find(
-        {"job_id": job["_id"]}, sort=[("applied_at", -1)]
-    ))
-    for row in rows:
+    result = BaseRepository(get_database(), "applications").list(
+        {"job_id": job["_id"]}, page=request.args.get("page", 1),
+        sort=("applied_at", -1),
+    )
+    for row in result["items"]:
         row["candidate"] = UserRepository(get_database()).get_by_id(row["candidate_id"])
         row["resume"] = get_database()["resumes"].find_one({"candidate_id": row["candidate_id"]})
-    return render_template("recruiter/applicants.html", job=job, applications=rows)
+    return render_template("recruiter/applicants.html", job=job, result=result)
 
 
 @web.post("/recruiter/applications/<application_id>/status")
@@ -372,36 +568,9 @@ def schedule_interview():
     db = get_database()
     user = current_user_document()
     if request.method == "POST":
-        application = BaseRepository(db, "applications").get_by_id(
-            request.form.get("application_id")
-        )
-        job = BaseRepository(db, "jobs").get_by_id(application["job_id"]) if application else None
-        if not application or not job or job["recruiter_id"] != user["_id"]:
-            raise UnauthorizedError("Select a valid application from one of your jobs.")
-        interview_type = request.form.get("type", "ONLINE").upper()
-        if interview_type not in {"ONLINE", "PHONE", "IN_PERSON"}:
-            raise ValidationError("Select a valid interview type.")
-        interview = {
-            "application_id": application["_id"], "candidate_id": application["candidate_id"],
-            "recruiter_id": user["_id"], "date": request.form.get("date", ""),
-            "time": request.form.get("time", ""), "type": interview_type,
-            "meeting_link": request.form.get("meeting_link", "").strip(),
-            "status": "SCHEDULED", "feedback": "",
-            "created_at": datetime.now(timezone.utc),
-        }
-        if application["status"] not in {"SHORTLISTED", "INTERVIEW_SCHEDULED"}:
-            from app.exceptions import InvalidApplicationStatusError
-            raise InvalidApplicationStatusError("Only shortlisted candidates can be scheduled.")
-        interview_id = db["interviews"].insert_one(interview).inserted_id
-        db["applications"].update_one(
-            {"_id": application["_id"]},
-            {"$set": {"status": "INTERVIEW_SCHEDULED", "interview_id": interview_id}},
-        )
-        NotificationService(db).create(
-            application["candidate_id"], "A recruiter scheduled an interview with you.", "INTERVIEW"
-        )
+        InterviewService(db).create(request.form, user)
         flash("Interview scheduled.", "success")
-        return redirect(url_for("web.dashboard"))
+        return redirect(url_for("web.interviews"))
     jobs = list(db["jobs"].find({"recruiter_id": user["_id"]}, {"_id": 1}))
     apps = list(db["applications"].find({"job_id": {"$in": [job["_id"] for job in jobs]}}))
     for row in apps:
@@ -431,44 +600,196 @@ def mark_notification_read(notification_id):
     return redirect(url_for("web.notifications"))
 
 
+@web.get("/admin")
+@role_required("ADMIN")
+def admin_root():
+    return redirect(url_for("web.admin_dashboard"))
+
+
+@web.get("/admin/dashboard")
+@role_required("ADMIN")
+def admin_dashboard():
+    db = get_database()
+    repository = AdminRepository(db)
+    stats = AdminService(db).analytics()
+    recent_audit_logs = repository.list_audit_logs(page=1, per_page=5)["items"]
+    for log in recent_audit_logs:
+        log["actor"] = UserRepository(db).get_by_id(log.get("user_id"))
+    return render_template(
+        "admin/dashboard.html", stats=stats,
+        recent_audit_logs=recent_audit_logs,
+    )
+
+
 @web.get("/admin/users")
+@web.get("/admin/candidates")
+@web.get("/admin/recruiters")
 @role_required("ADMIN")
 def admin_users():
-    result = BaseRepository(get_database(), "users").list(
-        {}, page=request.args.get("page", 1), sort=("created_at", -1)
+    role = {
+        "/admin/candidates": "CANDIDATE",
+        "/admin/recruiters": "RECRUITER",
+    }.get(request.path, request.args.get("role", "").upper() or None)
+    if role and role not in {"CANDIDATE", "RECRUITER", "ADMIN"}:
+        raise ValidationError("Select a valid user role.")
+    result = AdminRepository(get_database()).list_users(
+        role, page=request.args.get("page", 1)
     )
-    return render_template("admin/users.html", result=result)
+    return render_template("admin/users.html", result=result, role=role)
 
 
 @web.post("/admin/users/<user_id>/toggle")
 @role_required("ADMIN")
 def toggle_user(user_id):
-    repo = UserRepository(get_database())
-    user = repo.get_by_id(user_id)
-    if not user:
+    user = UserRepository(get_database()).get_by_id(user_id)
+    if not user or user.get("role") == "ADMIN":
         abort(404)
-    repo.update(user["_id"], {"is_active": not user.get("is_active", True)})
-    from app.services.audit_service import AuditService
-    AuditService(get_database()).record(
-        current_user_document()["_id"], "USER_DEACTIVATED" if user.get("is_active", True)
-        else "USER_ACTIVATED", "user", user["_id"],
+    AdminService(get_database()).set_user_active(
+        user_id, not user.get("is_active", True), current_user_document()
     )
     flash("User status updated.", "success")
-    return redirect(url_for("web.admin_users"))
+    return redirect(request.referrer or url_for("web.admin_users"))
 
 
-@web.get("/admin/reports/applications.csv")
+@web.get("/admin/companies")
 @role_required("ADMIN")
-def applications_csv():
+def admin_companies():
+    result = AdminRepository(get_database()).list_companies(
+        page=request.args.get("page", 1)
+    )
+    return render_template("admin/companies.html", result=result)
+
+
+@web.post("/admin/companies/<company_id>/verify")
+@role_required("ADMIN")
+def verify_company(company_id):
+    company = BaseRepository(get_database(), "companies").get_by_id(company_id)
+    if not company:
+        abort(404)
+    AdminService(get_database()).verify_company(
+        company_id, not company.get("verified", False), current_user_document()
+    )
+    flash("Company verification status updated.", "success")
+    return redirect(url_for("web.admin_companies"))
+
+
+@web.get("/admin/jobs")
+@role_required("ADMIN")
+def admin_jobs():
+    result = AdminRepository(get_database()).list_jobs(page=request.args.get("page", 1))
+    for job in result["items"]:
+        job["company"] = BaseRepository(get_database(), "companies").get_by_id(
+            job["company_id"]
+        )
+    return render_template("admin/jobs.html", result=result)
+
+
+@web.post("/admin/jobs/<job_id>/moderate")
+@role_required("ADMIN")
+def moderate_job(job_id):
+    AdminService(get_database()).moderate_job(
+        job_id, request.form.get("status"), current_user_document()
+    )
+    flash("Job moderation status updated.", "success")
+    return redirect(url_for("web.admin_jobs"))
+
+
+@web.get("/admin/applications")
+@role_required("ADMIN")
+def admin_applications():
+    query = {}
+    status = request.args.get("status", "").upper()
+    if status:
+        allowed_statuses = ApplicationService.TRANSITIONS.keys()
+        if status not in allowed_statuses:
+            raise ValidationError("Select a valid application status.")
+        query["status"] = status
+    result = AdminRepository(get_database()).list_applications(
+        query, page=request.args.get("page", 1)
+    )
+    for application in result["items"]:
+        application["candidate"] = UserRepository(get_database()).get_by_id(
+            application["candidate_id"]
+        )
+        application["job"] = BaseRepository(get_database(), "jobs").get_by_id(
+            application["job_id"]
+        )
+    return render_template("admin/applications.html", result=result, status=status)
+
+
+@web.get("/admin/analytics")
+@role_required("ADMIN")
+def admin_analytics():
+    return render_template("admin/analytics.html", stats=AdminService(get_database()).analytics())
+
+
+@web.get("/admin/reports")
+@role_required("ADMIN")
+def admin_reports():
+    report_type = request.args.get("type", "applications")
+    headers, rows = ReportService(get_database()).build(report_type, request.args)
+    return render_template(
+        "admin/reports.html", report_type=report_type,
+        headers=headers, rows=rows, filters=request.args,
+    )
+
+
+@web.get("/admin/audit-logs")
+@role_required("ADMIN")
+def admin_audit_logs():
+    result = AdminRepository(get_database()).list_audit_logs(
+        page=request.args.get("page", 1)
+    )
+    for log in result["items"]:
+        log["actor"] = UserRepository(get_database()).get_by_id(log.get("user_id"))
+    return render_template("admin/audit_logs.html", result=result)
+
+
+@web.get("/admin/reports/<report_type>.csv")
+@role_required("ADMIN")
+def download_report(report_type):
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Application ID", "Candidate ID", "Job ID", "Status", "Applied at"])
-    for item in get_database()["applications"].find():
-        writer.writerow([
-            str(item["_id"]), str(item["candidate_id"]), str(item["job_id"]),
-            item["status"], item.get("applied_at", ""),
-        ])
+    headers, rows = ReportService(get_database()).build(report_type, request.args)
+    writer.writerow(headers)
+    writer.writerows([_safe_csv_value(value) for value in row] for row in rows)
     return Response(
         output.getvalue(), mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=applications.csv"},
+        headers={
+            "Content-Disposition": f"attachment; filename={report_type.lower()}_report.csv"
+        },
     )
+
+
+def _parse_profile_entries(raw, fields, *, numeric_field, integer=False):
+    entries = []
+    for line in raw.splitlines():
+        if not line.strip():
+            continue
+        values = [value.strip() for value in line.split("|")]
+        if len(values) != len(fields) or any(not value for value in values):
+            raise ValidationError(
+                f"Each {fields[0]} or {fields[1]} entry must have {len(fields)} "
+                "pipe-separated values."
+            )
+        entry = dict(zip(fields, values))
+        try:
+            entry[numeric_field] = (
+                int(entry[numeric_field]) if integer else float(entry[numeric_field])
+            )
+        except ValueError as error:
+            raise ValidationError(
+                f"{numeric_field.replace('_', ' ').title()} must be a number."
+            ) from error
+        if entry[numeric_field] < 0:
+            raise ValidationError(f"{numeric_field.replace('_', ' ').title()} cannot be negative.")
+        entries.append(entry)
+    return entries
+
+
+def _safe_csv_value(value):
+    if not isinstance(value, str):
+        return value
+    if value.lstrip().startswith(("=", "+", "-", "@", "\t", "\r")):
+        return f"'{value}"
+    return value
