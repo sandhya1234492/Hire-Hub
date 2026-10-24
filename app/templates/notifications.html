@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Notifications | HireHub{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="container"><p class="eyebrow">Your updates</p><h1 class="h2">Notifications</h1></div></section>
+<section class="container py-4"><div class="section-card">
+{% for note in result["items"] %}<div class="list-row {% if not note.read %}unread{% endif %}"><div><div>{{ note.message }}</div><div class="small text-secondary">{{ note.created_at.strftime('%b %d, %Y at %H:%M') if note.created_at else '' }}</div></div>
+{% if not note.read %}<form method="post" action="{{ url_for('web.mark_notification_read', notification_id=note._id) }}"><button class="btn btn-sm btn-outline-primary">Mark read</button></form>{% endif %}</div>{% else %}<div class="empty-state">You're all caught up.</div>{% endfor %}
+</div></section>
+{% endblock %}

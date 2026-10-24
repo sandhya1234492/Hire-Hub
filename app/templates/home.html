@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}HireHub | Find your next opportunity{% endblock %}
+{% block content %}
+<section class="hero py-5">
+  <div class="container py-lg-5">
+    <div class="row align-items-center g-4">
+      <div class="col-lg-7">
+        <span class="badge text-bg-light text-primary mb-3">A better way to find your fit</span>
+        <h1 class="display-4 fw-bold mb-3">Your next chapter starts with the right opportunity.</h1>
+        <p class="lead text-secondary mb-4">Discover roles that match your skills, goals, and way of working.</p>
+        <form class="search-panel row g-2 p-2 bg-white rounded-4 shadow-sm" action="{{ url_for('web.jobs') }}">
+          <div class="col-md"><label class="visually-hidden" for="keyword">Job title or skill</label>
+            <input id="keyword" name="keyword" class="form-control form-control-lg border-0" placeholder="Job title or skill">
+          </div>
+          <div class="col-md"><label class="visually-hidden" for="location">Location</label>
+            <input id="location" name="location" class="form-control form-control-lg border-0" placeholder="City or remote">
+          </div>
+          <div class="col-md-auto"><button class="btn btn-primary btn-lg w-100" type="submit">Explore jobs</button></div>
+        </form>
+      </div>
+      <div class="col-lg-5 d-none d-lg-block">
+        <div class="hero-card p-4 rounded-4 bg-white shadow">
+          <div class="d-flex justify-content-between align-items-start">
+            <div><div class="small text-secondary">Your next move</div><h2 class="h4 mt-2">A role that fits you</h2></div>
+            <span class="match-pill">Great match</span>
+          </div>
+          <div class="match-bar my-4"><span></span></div>
+          <div class="row text-center g-2">
+            <div class="col"><div class="stat-tile"><strong>Skills</strong><small>Matched</small></div></div>
+            <div class="col"><div class="stat-tile"><strong>Growth</strong><small>Focused</small></div></div>
+            <div class="col"><div class="stat-tile"><strong>Goals</strong><small>Aligned</small></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="container py-5">
+  <div class="d-flex justify-content-between align-items-end mb-4">
+    <div><p class="eyebrow mb-1">Curated opportunities</p><h2 class="h3 mb-0">Recently posted jobs</h2></div>
+    <a href="{{ url_for('web.jobs') }}" class="link-primary">See all jobs →</a>
+  </div>
+  <div class="row g-3">
+    {% for job in jobs %}
+    <div class="col-md-6 col-lg-4">
+      <article class="card job-card h-100">
+        <div class="card-body p-4">
+          <span class="badge rounded-pill text-bg-light">{{ job.work_mode|replace('_',' ')|title }}</span>
+          <h3 class="h5 mt-3"><a class="stretched-link text-decoration-none text-dark" href="{{ url_for('web.job_detail', job_id=job._id) }}">{{ job.title }}</a></h3>
+          <p class="text-secondary mb-2">{{ job.location or 'Location flexible' }}</p>
+          <div class="small text-secondary">{{ job.employment_type|replace('_',' ')|title }} · {{ job.skills[:3]|join(', ') }}</div>
+        </div>
+      </article>
+    </div>
+    {% else %}
+    <div class="col"><div class="empty-state">No open roles yet. Check back soon.</div></div>
+    {% endfor %}
+  </div>
+</section>
+<section class="container pb-5">
+  <div class="row g-3">
+    <div class="col-md-6"><div class="role-card h-100"><p class="eyebrow">For candidates</p><h2 class="h4">Make your next move count.</h2><p class="text-secondary">Build your profile, find relevant roles, and keep every application in view.</p><a class="btn btn-outline-primary" href="{{ url_for('web.register') }}">Create candidate profile</a></div></div>
+    <div class="col-md-6"><div class="role-card h-100"><p class="eyebrow">For recruiters</p><h2 class="h4">Meet people ready to make an impact.</h2><p class="text-secondary">Publish a role and manage your candidates from one place.</p><a class="btn btn-outline-primary" href="{{ url_for('web.register') }}">Join as recruiter</a></div></div>
+  </div>
+</section>
+{% endblock %}

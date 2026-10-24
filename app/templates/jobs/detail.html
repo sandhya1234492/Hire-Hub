@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ job.title }} | HireHub{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="container">
+  <a class="small" href="{{ url_for('web.jobs') }}">← Back to jobs</a>
+  <div class="row align-items-start mt-3 g-4"><div class="col-lg-8">
+    <span class="badge text-bg-light">{{ job.work_mode|title }} · {{ job.employment_type|replace('_',' ')|title }}</span>
+    <h1 class="display-6 fw-bold mt-3">{{ job.title }}</h1>
+    <p class="lead text-secondary mb-1">{{ job.company.name if job.company else 'Company' }}</p>
+    <p class="text-secondary">{{ job.location or 'Location flexible' }}</p>
+  </div><div class="col-lg-4">
+    <div class="card border-0 shadow-sm"><div class="card-body p-4">
+      {% if job.salary_min or job.salary_max %}<p class="mb-3"><strong>Salary</strong><br><span class="text-secondary">{{ job.salary_min or '—' }} – {{ job.salary_max or '—' }}</span></p>{% endif %}
+      <p class="mb-3"><strong>Experience</strong><br><span class="text-secondary">{{ job.experience_min or 0 }}–{{ job.experience_max or 'Any' }} years</span></p>
+      {% if match %}<div class="match-summary mb-3"><strong>{{ match.score }}% match</strong><div class="small mt-1">Matched: {{ match.matched_skills|join(', ') or 'None yet' }}</div></div>{% endif %}
+      {% if current_user and current_user.role == 'CANDIDATE' %}
+      <form method="post" action="{{ url_for('web.save_job', job_id=job._id) }}" class="mb-2"><button class="btn btn-outline-primary w-100" type="submit">Save job</button></form>
+      <form method="post" action="{{ url_for('web.apply_job', job_id=job._id) }}"><button class="btn btn-primary btn-lg w-100" type="submit">Apply for this job</button></form>
+      {% elif not current_user %}<a href="{{ url_for('web.login') }}" class="btn btn-primary btn-lg w-100">Sign in to apply</a>
+      {% else %}<p class="small text-secondary mb-0">Candidate accounts can apply to this role.</p>{% endif %}
+    </div></div>
+  </div></div>
+</div></section>
+<section class="container py-5"><div class="row"><div class="col-lg-8">
+  <h2 class="h4">About the role</h2><div class="job-description">{{ job.description }}</div>
+  <h2 class="h5 mt-4">Skills</h2><div class="d-flex flex-wrap gap-2">{% for skill in job.skills %}<span class="skill-tag">{{ skill }}</span>{% endfor %}</div>
+</div></div></section>
+{% endblock %}

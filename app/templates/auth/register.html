@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Create an account | HireHub{% endblock %}
+{% block content %}
+<section class="auth-wrap container py-5">
+  <div class="auth-card mx-auto">
+    <p class="eyebrow">Get started</p><h1 class="h2 mb-2">Create your account</h1>
+    <p class="text-secondary mb-4">Join candidates and recruiters finding their next fit.</p>
+    <form method="post">
+      <div class="mb-3"><label class="form-label" for="role">I am a</label>
+        <select class="form-select form-select-lg" name="role" id="role">
+          <option value="CANDIDATE">Candidate</option><option value="RECRUITER">Recruiter</option>
+        </select>
+      </div>
+      <div class="mb-3"><label class="form-label" for="name">Full name</label><input class="form-control" name="name" id="name" required maxlength="120" autocomplete="name"></div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-7"><label class="form-label" for="reg-email">Email</label><input class="form-control" type="email" name="email" id="reg-email" required autocomplete="email"></div>
+        <div class="col-md-5"><label class="form-label" for="phone">Phone</label><input class="form-control" type="tel" name="phone" id="phone" autocomplete="tel"></div>
+      </div>
+      <div class="mb-3 d-none" id="company-field"><label class="form-label" for="company">Company name</label><input class="form-control" name="company_name" id="company"></div>
+      <div class="mb-3"><label class="form-label" for="reg-password">Password</label><input class="form-control" type="password" name="password" id="reg-password" required minlength="8" autocomplete="new-password"></div>
+      <div class="mb-4"><label class="form-label" for="confirm-password">Confirm password</label><input class="form-control" type="password" name="confirm_password" id="confirm-password" required minlength="8" autocomplete="new-password"></div>
+      <button class="btn btn-primary btn-lg w-100" type="submit">Create account</button>
+    </form>
+    <p class="text-center text-secondary mt-4 mb-0">Already registered? <a href="{{ url_for('web.login') }}">Sign in</a></p>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+  const roleSelect = document.getElementById("role");
+  const companyField = document.getElementById("company-field");
+  const companyInput = document.getElementById("company");
+  function updateCompanyField() {
+    const recruiter = roleSelect.value === "RECRUITER";
+    companyField.classList.toggle("d-none", !recruiter);
+    companyInput.required = recruiter;
+  }
+  roleSelect.addEventListener("change", updateCompanyField);
+  updateCompanyField();
+</script>
+{% endblock %}

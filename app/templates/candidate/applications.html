@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}My applications | HireHub{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="container"><p class="eyebrow">Candidate workspace</p><h1 class="h2">My applications</h1></div></section>
+<section class="container py-4"><div class="section-card">
+{% for application in result["items"] %}<div class="list-row">
+  <div><a class="fw-semibold text-decoration-none" href="{{ url_for('web.job_detail', job_id=application.job._id) if application.job else '#' }}">{{ application.job.title if application.job else 'Job unavailable' }}</a><div class="small text-secondary">Applied {{ application.applied_at.strftime('%b %d, %Y') if application.applied_at else '' }}</div></div>
+  <div class="text-end"><span class="badge text-bg-light">{{ application.status|replace('_',' ')|title }}</span>
+  {% if application.status not in ['SELECTED','REJECTED','WITHDRAWN'] %}<form class="mt-2" method="post" action="{{ url_for('web.withdraw_application', application_id=application._id) }}"><button class="btn btn-sm btn-outline-danger">Withdraw</button></form>{% endif %}</div>
+</div>{% else %}<div class="empty-state">No applications yet. <a href="{{ url_for('web.jobs') }}">Browse jobs</a>.</div>{% endfor %}
+</div></section>
+{% endblock %}

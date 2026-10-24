@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Admin dashboard | HireHub{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="container"><p class="eyebrow">Administration</p><h1 class="h2">HireHub overview</h1></div></section>
+<section class="container py-4"><div class="row g-3">
+{% for label, value in [('Users',stats.users),('Candidates',stats.candidates),('Recruiters',stats.recruiters),('Companies',stats.companies),('Jobs',stats.jobs),('Applications',stats.applications)] %}
+<div class="col-6 col-lg-4"><div class="metric-card"><span>{{ label }}</span><strong>{{ value }}</strong></div></div>{% endfor %}
+</div><div class="d-flex flex-wrap gap-2 mt-4"><a class="btn btn-outline-primary" href="{{ url_for('web.admin_users') }}">Manage users</a><a class="btn btn-outline-primary" href="{{ url_for('web.applications_csv') }}">Download application report</a></div></section>
+{% endblock %}

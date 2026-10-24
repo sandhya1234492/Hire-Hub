@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Recruiter dashboard | HireHub{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="container"><p class="eyebrow">Recruiter workspace</p><h1 class="h2">Welcome, {{ user.name.split()[0] }}.</h1><p class="text-secondary mb-0">Keep your hiring moving forward.</p></div></section>
+<section class="container py-4">
+  <div class="row g-3 mb-4">{% for label, value in [('Total jobs',stats.jobs),('Active jobs',stats.active_jobs),('Applications',stats.applications)] %}<div class="col-6 col-lg-4"><div class="metric-card"><span>{{ label }}</span><strong>{{ value }}</strong></div></div>{% endfor %}
+    <div class="col-6 col-lg-4 d-flex"><a class="btn btn-primary w-100 d-flex align-items-center justify-content-center" href="{{ url_for('web.create_job') }}">+ Post a job</a></div></div>
+  <div class="row g-4">
+    <div class="col-lg-5"><div class="section-card"><div class="d-flex justify-content-between mb-3"><h2 class="h5">Your jobs</h2><a href="{{ url_for('web.recruiter_jobs') }}">Manage all</a></div>
+      {% for job in jobs %}<div class="list-row"><div><a class="fw-semibold text-decoration-none" href="{{ url_for('web.applicants', job_id=job._id) }}">{{ job.title }}</a><div class="small text-secondary">{{ job.location }} · {{ job.status|title }}</div></div><a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.applicants', job_id=job._id) }}">Applicants</a></div>{% else %}<p class="text-secondary">Post your first job to get started.</p>{% endfor %}
+    </div></div>
+    <div class="col-lg-7"><div class="section-card"><div class="d-flex justify-content-between mb-3"><h2 class="h5">Recent applicants</h2><a href="{{ url_for('web.schedule_interview') }}">Schedule interview</a></div>
+      {% for item in applications %}<div class="list-row"><div><strong>{{ item.candidate.name if item.candidate else 'Candidate' }}</strong><div class="small text-secondary">{{ item.job.title if item.job else '' }} · {{ item.status|replace('_',' ')|title }}</div></div><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('web.applicants', job_id=item.job_id) }}">Review</a></div>{% else %}<p class="text-secondary">No applications yet.</p>{% endfor %}
+    </div></div>
+  </div>
+</section>
+{% endblock %}

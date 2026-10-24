@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Interviews | HireHub{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="container"><p class="eyebrow">Hiring timeline</p><h1 class="h2">Interviews</h1></div></section>
+<section class="container py-4"><div class="section-card">
+{% for interview in result["items"] %}
+<div class="list-row"><div><strong>{{ interview.job.title if interview.job else 'Job interview' }}</strong><div class="small text-secondary">{{ interview.candidate.name if interview.candidate else 'Candidate' }} · {{ interview.date }} at {{ interview.time }}</div><div class="small text-secondary">{{ interview.type|replace('_',' ')|title }} · {{ interview.status|title }}{% if interview.meeting_link %} · <a href="{{ interview.meeting_link }}" rel="noopener noreferrer">Meeting link</a>{% endif %}</div></div></div>
+{% else %}<div class="empty-state">No interviews are scheduled.</div>{% endfor %}
+</div></section>
+{% endblock %}

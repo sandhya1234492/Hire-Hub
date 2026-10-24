@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Schedule interview | HireHub{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="container"><p class="eyebrow">Recruiter workspace</p><h1 class="h2">Schedule an interview</h1></div></section>
+<section class="container py-4"><form method="post" class="section-card form-shell">
+  <div class="mb-3"><label class="form-label">Application</label><select class="form-select" name="application_id" required>{% for application in applications %}<option value="{{ application._id }}">{{ application.candidate.name if application.candidate else 'Candidate' }} — {{ application.job.title if application.job else 'Job' }}</option>{% endfor %}</select></div>
+  <div class="row g-3"><div class="col-md-6"><label class="form-label">Date</label><input class="form-control" type="date" name="date" required></div><div class="col-md-6"><label class="form-label">Time</label><input class="form-control" type="time" name="time" required></div></div>
+  <div class="row g-3 mt-1"><div class="col-md-6"><label class="form-label">Interview type</label><select class="form-select" name="type"><option>ONLINE</option><option>PHONE</option><option>IN_PERSON</option></select></div><div class="col-md-6"><label class="form-label">Meeting link</label><input class="form-control" type="url" name="meeting_link"></div></div>
+  <button class="btn btn-primary mt-4" type="submit">Schedule interview</button>
+</form></section>
+{% endblock %}
